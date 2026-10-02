@@ -27,7 +27,7 @@ Keep it private: it's the password to your database.
    - `DATABASE_URL`: paste the Neon connection string.
    - `GEMINI_API_KEY`: optional, for AI insights (free key at aistudio.google.com). Leave the other keys empty if you don't have them. Insights still work without any key: they're written from your stats instead.
 3. Click **Apply**. The first build takes a few minutes.
-4. Your site is live at `https://focusguard-ai.onrender.com` (or the name Render shows). Open it, create an account, done.
+4. Your site is live at the address Render shows, such as `https://focusguard-ai-y4tt.onrender.com` (Render adds a random suffix when the plain name is taken). Open it, create an account, done.
 
 **Free-tier note:** Render's free plan sleeps after ~15 minutes without visitors, and the first visit afterwards takes about a minute. To keep it awake, add the site URL as a free monitor at [uptimerobot.com](https://uptimerobot.com) (check every 10 minutes), or switch the service to a paid plan.
 
@@ -37,7 +37,7 @@ The tracker and extension need to know your site's address. This bakes it into t
 
 ```bash
 python -m pip install pyinstaller
-python scripts/build_release.py --server https://focusguard-ai.onrender.com
+python scripts/build_release.py --server https://focusguard-ai-y4tt.onrender.com   # use your own site address
 ```
 
 This creates:
@@ -50,11 +50,18 @@ Other people can only download release files from a **public** repository. If `f
 
 ```bash
 gh release create v1.0 release/FocusGuard-Tracker.exe release/FocusGuard-extension.zip \
-  --title "FocusGuard AI v1.0" --notes "Website: https://focusguard-ai.onrender.com"
+  --title "FocusGuard AI v1.0" --notes "Website: https://focusguard-ai-y4tt.onrender.com"
 ```
 
-Share these two links:
-- **App:** `https://focusguard-ai.onrender.com`
+**Publishing an update:** whenever the tracker or extension code changes, rebuild (step 3) and publish a new release with the next version number (`v1.2`, `v1.3`, …) instead of reusing an old one. The newest release automatically becomes the one the **Downloads** link and the dashboard's **Download for Windows** button serve. Website-only changes don't need a release, since Render redeploys on every push to `main`.
+
+```bash
+gh release create v1.2 release/FocusGuard-Tracker.exe release/FocusGuard-extension.zip \
+  --title "FocusGuard v1.2" --notes "What changed in this version"
+```
+
+Share these two links (replace the app address with your own if you deployed a separate copy):
+- **App:** `https://focusguard-ai-y4tt.onrender.com`
 - **Downloads:** `https://github.com/aisheeem7/focusguard-ai/releases/latest`
 
 ---
