@@ -857,3 +857,22 @@ def test_badges_unlock_from_real_activity(client):
 def test_cannot_view_another_users_badges(client):
     alice, bob = register(client), register(client, "bob")
     assert client.get(f"/badges/{bob['user_id']}", headers=auth_headers(alice)).status_code == 403
+
+
+# ---- Online (cloud) mode ----
+
+def test_cloud_mode_disables_single_machine_device_link(client, monkeypatch):
+    """Deployed online, many people share one server: signing in must not
+    link anyone's account to "this machine" or start a tracker on the
+    server, and the token handout must stay closed."""
+    monkeypatch.setattr(main_module, "CLOUD_MODE", True)
+    spawned = []
+    monkeypatch.setattr(main_module.subprocess, "Popen", lambda *a, **k: spawned.append(a))
+    user = register(client)
+    assert client.post("/device-link", headers=auth_headers(user)).status_code == 204
+    assert client.get("/device-link").status_code == 404
+    assert client.delete("/device-link", headers=auth_headers(user)).status_code == 204
+    assert spawned == []
+    db = SessionLocal()
+    assert db.query(main_module.DeviceLink).count() == 0
+    db.close()

@@ -22,9 +22,12 @@ for the life of the process (not written to disk).
 from __future__ import annotations
 
 import getpass
+import json
 import os
 import sys
+from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 try:
     import requests
@@ -37,7 +40,36 @@ except ImportError:
 # URL at all), so backend sync silently stayed off unless someone set
 # TRACKER_BACKEND_URL themselves. Matching the others removes a whole
 # category of "why isn't my tracker showing up anywhere" confusion.
-DEFAULT_BACKEND_URL = "http://127.0.0.1:8000"
+LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
+SERVER_CONFIG_NAME = "focusguard_server.json"
+# Where an online tracker remembers its sign-in between launches.
+SESSION_FILE = Path.home() / ".focusguard" / "tracker_session.json"
+
+
+def _bundled_backend_url() -> Optional[str]:
+    """The server address baked into the downloadable tracker by
+    scripts/build_release.py (focusguard_server.json, next to the .exe or
+    inside it). Absent when running from source, which keeps the local
+    default."""
+    here = Path(__file__).resolve().parent
+    folders = [Path(getattr(sys, "_MEIPASS", here)), here]
+    if getattr(sys, "frozen", False):
+        folders.insert(0, Path(sys.executable).resolve().parent)
+    for folder in folders:
+        try:
+            url = json.loads((folder / SERVER_CONFIG_NAME).read_text(encoding="utf-8")).get("backend_url")
+        except (OSError, ValueError):
+            continue
+        if url:
+            return url
+    return None
+
+
+DEFAULT_BACKEND_URL = _bundled_backend_url() or LOCAL_BACKEND_URL
+
+
+def _is_local_url(url: str) -> bool:
+    return (urlparse(url).hostname or "") in ("127.0.0.1", "localhost", "::1")
 
 
 class BackendClient:
@@ -69,7 +101,13 @@ class BackendClient:
 
         if self.uses_device_link:
             self.enabled = False
-            if REQUESTS_AVAILABLE and self.base_url and self.link_from_backend():
+            online = not _is_local_url(self.base_url)
+            if REQUESTS_AVAILABLE and self.base_url and not online and self.link_from_backend():
+                return
+            # Online there's no dashboard on this machine to follow - reuse
+            # the sign-in saved the last time you logged in here instead.
+            if REQUESTS_AVAILABLE and online and self._load_saved_session():
+                self.uses_device_link = False
                 return
             # Previously, running window_tracker.py directly (not through
             # launch_focusguard.py) meant tracking stayed local-only with a
@@ -80,6 +118,12 @@ class BackendClient:
             if prompt_if_missing and not auto_link and sys.stdin.isatty():
                 self._prompt_for_credentials()
                 self.uses_device_link = not (self.username and self.password)
+            if self.uses_device_link and online:
+                # Signing in on a website can't reach this machine - only
+                # the tracker's own login can.
+                print("[info] Not signed in - tracking locally only. Restart the tracker to sign in "
+                      "with your FocusGuard account.", file=sys.stderr)
+                return
             if self.uses_device_link:
                 print("[info] Waiting for you to sign in on the FocusGuard dashboard - tracking "
                       "locally until then, and syncing automatically once you do.", file=sys.stderr)
@@ -126,11 +170,55 @@ class BackendClient:
         if not REQUESTS_AVAILABLE or not self.base_url:
             return
         if self.uses_device_link:
-            self.link_from_backend()
+            if _is_local_url(self.base_url):
+                self.link_from_backend()
         elif not self.enabled and self.username and self.password:
             self._warned = True  # don't repeat the "disabled" warning on every retry
             self.enabled = True
             self._authenticate()
+        elif not self.enabled and self._token:
+            self._warned = True  # saved sign-in: just retry once the server is back
+            self.enabled = True
+
+    def _load_saved_session(self) -> bool:
+        try:
+            saved = json.loads(SESSION_FILE.read_text(encoding="utf-8")).get(self.base_url)
+        except (OSError, ValueError):
+            return False
+        if not saved:
+            return False
+        try:
+            r = requests.get(f"{self.base_url}/users/me",
+                             headers={"Authorization": f"Bearer {saved['token']}"}, timeout=max(self.timeout, 10.0))
+        except Exception:
+            r = None  # server asleep or offline - keep the sign-in and retry later
+        if r is not None and r.status_code == 401:
+            self._forget_saved_session()
+            return False
+        self._token, self.user_id, self.username = saved["token"], saved["user_id"], saved["username"]
+        self.enabled = r is not None and r.ok
+        print(f"[info] Signed in as '{self.username}' - activity syncs to {self.base_url}.", file=sys.stderr)
+        return True
+
+    def _save_session(self) -> None:
+        try:
+            sessions = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            sessions = {}
+        sessions[self.base_url] = {"token": self._token, "user_id": self.user_id, "username": self.username}
+        try:
+            SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+            SESSION_FILE.write_text(json.dumps(sessions, indent=2), encoding="utf-8")
+        except OSError:
+            pass  # just means logging in again next launch
+
+    def _forget_saved_session(self) -> None:
+        try:
+            sessions = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+            sessions.pop(self.base_url, None)
+            SESSION_FILE.write_text(json.dumps(sessions, indent=2), encoding="utf-8")
+        except (OSError, ValueError):
+            pass
 
     def _prompt_for_credentials(self) -> None:
         print(f"[info] Not connected to the backend ({self.base_url}). Log in with the SAME "
@@ -169,6 +257,8 @@ class BackendClient:
             data = r.json()
             self._token = data["api_token"]
             self.user_id = data["user_id"]
+            if not _is_local_url(self.base_url):
+                self._save_session()  # online: no need to type the password next launch
             # Previously silent on success - the only way to tell whether
             # you were actually connected was to check the web dashboard
             # afterward. Printing this immediately means a wrong

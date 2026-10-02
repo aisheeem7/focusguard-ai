@@ -1,0 +1,14 @@
+.git
+venv
+.venv
+**/__pycache__
+**/node_modules
+frontend-react/dist
+build
+release
+.env
+*.db
+backend/uploads
+*.jsonl
+tracker.log
+learned_categories.json

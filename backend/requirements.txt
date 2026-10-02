@@ -15,3 +15,4 @@ pytest       # to run tests/
 # fallback chain can never even attempt them.
 google-genai # Feature 5 fallback if Anthropic is unavailable/out of credits; set GEMINI_API_KEY too (free tier: aistudio.google.com)
 openai       # Feature 5 third fallback via the CheaperInference proxy; set CHEAPER_INFERENCE_API_KEY too
+psycopg2-binary # Postgres driver - used when deployed online (DATABASE_URL=postgresql://...)

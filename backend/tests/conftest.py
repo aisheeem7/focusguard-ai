@@ -14,7 +14,9 @@ import sys
 # reads DATABASE_URL, and make sure the backend/ folder is importable
 # regardless of where pytest is invoked from.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-os.environ["DATABASE_URL"] = "sqlite:///./test_app.db"
+# TEST_DATABASE_URL runs the same suite against Postgres (the database
+# used when deployed online); SQLite stays the default.
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "sqlite:///./test_app.db")
 # Linking an account normally starts the real window_tracker.py in the
 # background - never from the test suite.
 os.environ["FOCUSGUARD_AUTOSTART_TRACKER"] = "0"

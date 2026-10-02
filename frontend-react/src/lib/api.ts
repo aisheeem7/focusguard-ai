@@ -7,9 +7,14 @@
  * versa. The backend itself is untouched.
  */
 
+// The backend that served this page - http://127.0.0.1:8000 when run
+// locally, the site's own address when deployed online. `npm run dev`
+// (Vite's own server) talks to the local backend explicitly.
 const BACKEND_URL =
   (window as { FOCUS_GROVE_BACKEND_URL?: string }).FOCUS_GROVE_BACKEND_URL ??
-  'http://127.0.0.1:8000'
+  (import.meta.env.DEV || !/^https?:$/.test(window.location.protocol)
+    ? 'http://127.0.0.1:8000'
+    : window.location.origin)
 
 interface Session {
   api_token: string

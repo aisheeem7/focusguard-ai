@@ -23,3 +23,7 @@ tracker.log
 # Personal tracked activity (written by window_tracker.py at runtime)
 activity_log.jsonl
 switch_log.jsonl
+
+# Release builds (scripts/build_release.py)
+build/
+release/

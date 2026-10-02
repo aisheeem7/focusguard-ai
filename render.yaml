@@ -1,0 +1,16 @@
+# One-click setup on Render (Dashboard -> New -> Blueprint). See DEPLOY.md.
+services:
+  - type: web
+    name: focusguard-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL          # Postgres connection string (e.g. from Neon)
+        sync: false
+      - key: GEMINI_API_KEY        # optional: AI insights (free key at aistudio.google.com)
+        sync: false
+      - key: ANTHROPIC_API_KEY     # optional
+        sync: false
+      - key: CHEAPER_INFERENCE_API_KEY  # optional
+        sync: false

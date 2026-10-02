@@ -33,13 +33,13 @@ load_dotenv()
 from fastapi import FastAPI, Depends, HTTPException, Request, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from sqlalchemy import func, case
+from fastapi.responses import FileResponse, Response
+from sqlalchemy import func, case, cast, String
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import Base, engine, get_db, DATABASE_URL
-from models import User, SessionRecord, SwitchRecord, Group, FocusSession, WeeklyInsight, LearnedCategory, LiveStatus, DeviceLink
+from models import User, SessionRecord, SwitchRecord, Group, FocusSession, WeeklyInsight, LearnedCategory, LiveStatus, DeviceLink, AvatarImage
 from schemas import (
     UserRegister, UserLogin, TokenResponse,
     UserProfileOut, UserProfileUpdate,
@@ -96,11 +96,29 @@ if DATABASE_URL.startswith("sqlite"):
 
 app = FastAPI(title="Distraction Tracker Backend", version="0.1.0")
 
+# "local" (default): one person running FocusGuard on their own computer.
+# "cloud": deployed online for many users (see DEPLOY.md) - profile photos
+# are kept in the database, and the single-machine conveniences (device
+# link, auto-starting the tracker) are switched off. Everything the user
+# sees and does is the same in both modes.
+CLOUD_MODE = os.environ.get("FOCUSGUARD_MODE", "local").strip().lower() == "cloud"
+
 # Where uploaded avatar images live on disk; served back out at /uploads/*.
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 AVATAR_DIR = os.path.join(UPLOAD_DIR, "avatars")
-os.makedirs(AVATAR_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+if CLOUD_MODE:
+    @app.get("/uploads/avatars/{filename}", include_in_schema=False)
+    def serve_avatar(filename: str, db: Session = Depends(get_db)):
+        user_id = filename.split("_", 1)[0]
+        row = db.query(AvatarImage).filter(AvatarImage.user_id == int(user_id)).first() if user_id.isdigit() else None
+        if row is None or row.filename != filename:
+            raise HTTPException(status_code=404, detail="Not found")
+        # Filenames carry an upload timestamp, so a cached copy never goes stale.
+        return Response(content=row.data, media_type=row.content_type,
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
+else:
+    os.makedirs(AVATAR_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Lets one `uvicorn main:app` process serve the whole product - API plus
 # both UI surfaces - so FocusGuard AI runs fully offline as a single
@@ -252,16 +270,22 @@ async def upload_avatar(
     if len(contents) > MAX_AVATAR_BYTES:
         raise HTTPException(status_code=400, detail="Image too large - max 5MB")
 
-    # Clear out any previous avatar file(s) for this user before writing the
-    # new one - the filename includes a timestamp so browsers don't serve a
-    # stale cached image after a re-upload.
-    for existing_name in os.listdir(AVATAR_DIR):
-        if existing_name.startswith(f"{current_user.id}_"):
-            os.remove(os.path.join(AVATAR_DIR, existing_name))
-
     filename = f"{current_user.id}_{int(datetime.utcnow().timestamp())}.{ext}"
-    with open(os.path.join(AVATAR_DIR, filename), "wb") as out_file:
-        out_file.write(contents)
+    if CLOUD_MODE:
+        row = db.query(AvatarImage).filter(AvatarImage.user_id == current_user.id).first()
+        if row is None:
+            row = AvatarImage(user_id=current_user.id)
+            db.add(row)
+        row.filename, row.content_type, row.data = filename, file.content_type, contents
+    else:
+        # Clear out any previous avatar file(s) for this user before writing the
+        # new one - the filename includes a timestamp so browsers don't serve a
+        # stale cached image after a re-upload.
+        for existing_name in os.listdir(AVATAR_DIR):
+            if existing_name.startswith(f"{current_user.id}_"):
+                os.remove(os.path.join(AVATAR_DIR, existing_name))
+        with open(os.path.join(AVATAR_DIR, filename), "wb") as out_file:
+            out_file.write(contents)
 
     current_user.avatar_url = f"/uploads/avatars/{filename}"
     db.commit()
@@ -362,6 +386,13 @@ BADGE_THRESHOLDS = [
 ]
 
 
+def _day(column):
+    """The calendar day (UTC) of a timestamp as 'YYYY-MM-DD' text. SQLite's
+    date() already returns text; Postgres returns a date object, so the
+    cast keeps every day key a plain string on both databases."""
+    return cast(func.date(column), String)
+
+
 def _compute_streaks(success_days: list[str]) -> tuple[int, int]:
     """success_days: sorted list of 'YYYY-MM-DD' strings that count as a
     success day. Returns (current_streak, longest_streak), both counted
@@ -416,24 +447,24 @@ def get_streaks(
 
     switch_rows = (
         db.query(
-            func.date(SwitchRecord.created_at).label("day"),
+            _day(SwitchRecord.created_at).label("day"),
             func.count(SwitchRecord.id).label("total"),
             func.sum(case((SwitchRecord.category == "distraction", 1), else_=0)).label("distraction"),
         )
         .filter(SwitchRecord.user_id == user_id)
-        .group_by(func.date(SwitchRecord.created_at))
+        .group_by(_day(SwitchRecord.created_at))
         .all()
     )
     switch_map = {row.day: {"total": row.total, "distraction": row.distraction or 0} for row in switch_rows}
 
     session_rows = (
         db.query(
-            func.date(SessionRecord.created_at).label("day"),
+            _day(SessionRecord.created_at).label("day"),
             SessionRecord.category,
             func.sum(SessionRecord.duration).label("seconds"),
         )
         .filter(SessionRecord.user_id == user_id)
-        .group_by(func.date(SessionRecord.created_at), SessionRecord.category)
+        .group_by(_day(SessionRecord.created_at), SessionRecord.category)
         .all()
     )
     session_map: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
@@ -517,15 +548,15 @@ def _badge_metrics(user: User, db: Session) -> dict:
     # A "zen" day: an hour or more of productive time with not a single
     # switch into a distraction that day.
     productive_by_day = dict(
-        db.query(func.date(SessionRecord.created_at), func.sum(SessionRecord.duration))
+        db.query(_day(SessionRecord.created_at), func.sum(SessionRecord.duration))
         .filter(SessionRecord.user_id == uid, SessionRecord.category == "productive")
-        .group_by(func.date(SessionRecord.created_at))
+        .group_by(_day(SessionRecord.created_at))
         .all()
     )
     distraction_switches_by_day = dict(
-        db.query(func.date(SwitchRecord.created_at), func.count(SwitchRecord.id))
+        db.query(_day(SwitchRecord.created_at), func.count(SwitchRecord.id))
         .filter(SwitchRecord.user_id == uid, SwitchRecord.category == "distraction")
-        .group_by(func.date(SwitchRecord.created_at))
+        .group_by(_day(SwitchRecord.created_at))
         .all()
     )
     zen_days = sum(
@@ -606,12 +637,12 @@ def _compute_history_data(user_id: int, days: int, db: Session, top_apps_limit: 
 
     day_rows = (
         db.query(
-            func.date(SessionRecord.created_at).label("day"),
+            _day(SessionRecord.created_at).label("day"),
             SessionRecord.category,
             func.sum(SessionRecord.duration).label("seconds"),
         )
         .filter(SessionRecord.user_id == user_id, SessionRecord.created_at >= cutoff)
-        .group_by(func.date(SessionRecord.created_at), SessionRecord.category)
+        .group_by(_day(SessionRecord.created_at), SessionRecord.category)
         .all()
     )
     by_day: dict = defaultdict(lambda: defaultdict(int))
@@ -1035,7 +1066,7 @@ def _ensure_tracker_running(base_url: str) -> None:
     when launched through launch_focusguard.py. The tracker holds a
     single-instance lock, so a racing double start just exits cleanly."""
     global _tracker_proc
-    if os.environ.get("FOCUSGUARD_AUTOSTART_TRACKER", "1") != "1":
+    if CLOUD_MODE or os.environ.get("FOCUSGUARD_AUTOSTART_TRACKER", "1") != "1":
         return
     if not TRACKER_SCRIPT.is_file():
         return
@@ -1085,6 +1116,8 @@ def link_device(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if CLOUD_MODE:
+        return  # one shared server, many people: nothing to link or start
     link = db.query(DeviceLink).first()
     if link is None:
         db.add(DeviceLink(user_id=current_user.id))
@@ -1097,6 +1130,8 @@ def link_device(
 
 @app.delete("/device-link", status_code=status.HTTP_204_NO_CONTENT)
 def unlink_device(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if CLOUD_MODE:
+        return
     db.query(DeviceLink).filter(DeviceLink.user_id == current_user.id).delete()
     db.commit()
 
@@ -1104,6 +1139,8 @@ def unlink_device(db: Session = Depends(get_db), current_user: User = Depends(ge
 @app.get("/device-link", response_model=DeviceLinkOut)
 def get_device_link(request: Request, db: Session = Depends(get_db)):
     global _tracker_last_poll
+    if CLOUD_MODE:
+        raise HTTPException(status_code=404, detail="Sign in from the extension popup or the tracker instead")
     if not _is_local_tracker_request(request):
         raise HTTPException(status_code=403, detail="Only local trackers can read the device link")
     if request.headers.get("x-focusguard-client") == "tracker":

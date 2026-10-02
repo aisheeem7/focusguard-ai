@@ -7,7 +7,15 @@
  * other than the default local address.
  */
 
-const BACKEND_URL = window.FOCUS_GROVE_BACKEND_URL || 'http://127.0.0.1:8000';
+// The backend that served this page - http://127.0.0.1:8000 when run
+// locally, the site's own address when deployed online. Only the Vite
+// dev server (5173/4173) or a page opened from disk talks to the local
+// backend explicitly.
+const BACKEND_URL = window.FOCUS_GROVE_BACKEND_URL || (
+  /^https?:$/.test(window.location.protocol) && !['5173', '4173'].includes(window.location.port)
+    ? window.location.origin
+    : 'http://127.0.0.1:8000'
+);
 
 const Auth = {
   getToken() { return localStorage.getItem('fg_token'); },

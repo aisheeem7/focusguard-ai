@@ -60,6 +60,8 @@ This builds the dashboard on first run, starts the backend and the system tracke
 
 Launcher options: `--no-tracker` (website only), `--no-build` (skip the build check).
 
+**Put it online:** to share one link that anyone can sign up on (with downloads for the tracker and extension), follow **[DEPLOY.md](DEPLOY.md)**. It uses Render and Neon, both free.
+
 ---
 
 ## Features
@@ -104,6 +106,8 @@ Launcher options: `--no-tracker` (website only), `--no-build` (skip the build ch
 ├── llm_classifier.py        tracker's direct AI fallback (when the backend is unreachable)
 ├── app_categories.json      productive / distraction / neutral app & site lists
 ├── reset_password.py        local password reset utility
+├── Dockerfile, render.yaml  online deployment (see DEPLOY.md)
+├── scripts/build_release.py builds the downloadable tracker .exe + extension .zip
 ├── backend/                 FastAPI app (main.py), models, schemas, auth, tests/
 ├── extension-patch/         Chrome extension (background.js, popup, manifest)
 ├── frontend/                main dashboard: app.html, js/, css/, locales/
@@ -120,12 +124,12 @@ Launcher options: `--no-tracker` (website only), `--no-build` (skip the build ch
 python -m pytest backend/tests -q
 ```
 
-The 50 automated tests cover accounts, tracking data, classification, streaks, badges, groups and leaderboard, Focus Mode, insights, history and account linking.
+The 51 automated tests cover accounts, tracking data, classification, streaks, badges, groups and leaderboard, Focus Mode, insights, history, account linking and online mode. Set `TEST_DATABASE_URL=postgresql://...` to run the same tests against PostgreSQL.
 
 ---
 
 ## Notes
 
-- **Local by design.** Data stays in `app.db` on your machine. Only the optional AI insights and classification contact an AI provider.
+- **Local by default.** Data stays in `app.db` on your machine; only the optional AI insights and classification contact an AI provider. When deployed online it lives in your PostgreSQL database instead.
 - **Backend must be running.** The tracker and extension need it to sync; without it, the tracker keeps a local log.
 - **Translations** were machine-assisted and haven't been reviewed by native speakers.

@@ -5,10 +5,10 @@ Database tables. Mirrors the JSON shapes already produced by
 window_tracker.py, plus a users table for per-user scoping.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, LargeBinary
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from database import Base
+from database import Base, UTCDateTime
 
 
 class User(Base):
@@ -25,7 +25,7 @@ class User(Base):
     # break/penalty mechanic, so all three surfaces agree on one value
     # instead of each hardcoding their own default.
     break_interval_minutes = Column(Integer, nullable=False, default=50)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(UTCDateTime(), server_default=func.now())
 
     sessions = relationship("SessionRecord", back_populates="user")
     switches = relationship("SwitchRecord", back_populates="user")
@@ -41,7 +41,7 @@ class Group(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     join_code = Column(String, unique=True, index=True, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(UTCDateTime(), server_default=func.now())
 
     members = relationship("User", back_populates="group")
 
@@ -61,7 +61,7 @@ class LearnedCategory(Base):
     category = Column(String, nullable=False)  # productive | distraction | neutral
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True, index=True)
     source = Column(String, default="llm")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(UTCDateTime(), server_default=func.now())
 
 
 class FocusSession(Base):
@@ -79,10 +79,10 @@ class FocusSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     planned_duration_seconds = Column(Integer, nullable=False)
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    ended_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(UTCDateTime(), server_default=func.now())
+    ended_at = Column(UTCDateTime(), nullable=True)
     status = Column(String, default="active")  # active | completed | broken
-    distraction_started_at = Column(DateTime(timezone=True), nullable=True)
+    distraction_started_at = Column(UTCDateTime(), nullable=True)
     distraction_seconds_accumulated = Column(Integer, nullable=False, default=0)
 
     # Feature 8: break/penalty tracking. break_started_at is set while a
@@ -95,9 +95,9 @@ class FocusSession(Base):
     # that break ends, so end_focus_break knows whether to apply the
     # penalty without re-deriving it from a reference point that's since
     # moved on.
-    break_started_at = Column(DateTime(timezone=True), nullable=True)
+    break_started_at = Column(UTCDateTime(), nullable=True)
     paused_seconds_accumulated = Column(Integer, nullable=False, default=0)
-    last_break_ended_at = Column(DateTime(timezone=True), nullable=True)
+    last_break_ended_at = Column(UTCDateTime(), nullable=True)
     break_is_penalized = Column(Boolean, nullable=True, default=None)
 
     user = relationship("User")
@@ -122,7 +122,7 @@ class WeeklyInsight(Base):
     # local stats-based writer instead - cached only briefly so a real
     # AI insight replaces it as soon as a provider recovers.
     is_fallback = Column(Boolean, nullable=False, default=False)
-    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    generated_at = Column(UTCDateTime(), server_default=func.now())
 
     user = relationship("User")
 
@@ -140,7 +140,7 @@ class LiveStatus(Base):
     source = Column(String, nullable=False)  # "extension" | "system"
     name = Column(String, nullable=False)
     category = Column(String, nullable=False)  # productive | distraction | neutral
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(UTCDateTime(), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User")
 
@@ -157,7 +157,7 @@ class SessionRecord(Base):
     start_time = Column(String, nullable=False)  # "HH:MM" as produced by the tracker
     end_time = Column(String, nullable=False)
     duration = Column(Integer, nullable=False)  # seconds
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(UTCDateTime(), server_default=func.now())
 
     user = relationship("User", back_populates="sessions")
 
@@ -174,7 +174,7 @@ class SwitchRecord(Base):
     category = Column(String, default="neutral")
     total_switch_count = Column(Integer, nullable=False)
     distraction_switch_count = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(UTCDateTime(), server_default=func.now())
 
     user = relationship("User", back_populates="switches")
 
@@ -189,6 +189,19 @@ class DeviceLink(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(UTCDateTime(), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User")
+
+
+class AvatarImage(Base):
+    """Profile photo bytes, used when deployed online (FOCUSGUARD_MODE=cloud):
+    hosted servers wipe their disk on every redeploy, so photos live in the
+    database instead of backend/uploads/. Served at the same
+    /uploads/avatars/<file> URL either way."""
+    __tablename__ = "avatar_images"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    filename = Column(String, nullable=False)
+    content_type = Column(String, nullable=False)
+    data = Column(LargeBinary, nullable=False)
