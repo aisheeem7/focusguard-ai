@@ -9,13 +9,16 @@ const NAV_LINK_KEYS = ['home', 'focus_mode', 'streaks', 'leaderboard', 'insights
 export function Nav() {
   const { t } = useTranslation()
 
+  // Equal side columns keep the links centred on the page, not between
+  // a narrow logo and the wider buttons. Where the row is too narrow for
+  // that, the links move to their own centred row underneath.
   return (
-    <nav className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-8 py-6">
-      <Link to="/" className="font-serif text-2xl tracking-tight text-foreground">
+    <nav className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto] items-center gap-x-6 gap-y-4 px-8 py-6 min-[1180px]:grid-cols-[1fr_auto_1fr]">
+      <Link to="/" className="col-start-1 row-start-1 justify-self-start font-serif text-2xl tracking-tight text-foreground">
         FocusGuard AI
       </Link>
 
-      <ul className="hidden items-center gap-8 md:flex">
+      <ul className="col-span-2 row-start-2 hidden items-center justify-center gap-8 md:flex min-[1180px]:col-span-1 min-[1180px]:col-start-2 min-[1180px]:row-start-1">
         {NAV_LINK_KEYS.map((key) => (
           <li key={key}>
             <a
@@ -28,7 +31,7 @@ export function Nav() {
         ))}
       </ul>
 
-      <div className="flex items-center gap-3">
+      <div className="col-start-2 row-start-1 flex items-center gap-3 justify-self-end min-[1180px]:col-start-3">
         <LanguageSwitcher />
         <Button asChild variant="glass" className="rounded-full">
           <Link to="/auth">{t('nav.sign_in')}</Link>
