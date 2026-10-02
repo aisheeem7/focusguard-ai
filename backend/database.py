@@ -8,6 +8,7 @@ go through the ORM.
 """
 
 import os
+import re
 from datetime import timezone
 
 from sqlalchemy import create_engine, DateTime
@@ -26,9 +27,15 @@ if not DATABASE_URL.startswith(("sqlite", "postgres://", "postgresql://", "postg
         "(copy it from your Neon project's Connect dialog)."
     )
 # Some hosts hand out "postgres://..." URLs, which SQLAlchemy only accepts
-# under the "postgresql://" name.
+# under the "postgresql://" name; and Neon's SQLAlchemy snippet names a
+# specific driver ("postgresql+psycopg://", "+asyncpg"...). The app ships
+# psycopg2, so any of these is normalised to plain "postgresql://".
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
+elif DATABASE_URL.startswith("postgresql+"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL.split("://", 1)[1]
+    # asyncpg-style "ssl=require" means "sslmode=require" to psycopg2.
+    DATABASE_URL = re.sub(r"([?&])ssl=", r"\1sslmode=", DATABASE_URL)
 
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
