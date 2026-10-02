@@ -27,3 +27,6 @@ switch_log.jsonl
 # Release builds (scripts/build_release.py)
 build/
 release/
+
+# Test database created when running pytest from the repo root
+/test_app.db
