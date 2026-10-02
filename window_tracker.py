@@ -908,6 +908,7 @@ class WindowTracker:
             if self.use_ui and self._live is not None:
                 self._live.update(self._render())
                 self._live.stop()
+            self.backend.flush()  # online: deliver anything still queued before exiting
             print(f"\nStopped. Total switches: {self.total_switch_count}, "
                   f"distraction switches: {self.distraction_switch_count}")
 

@@ -25,6 +25,7 @@ import getpass
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -42,6 +43,7 @@ except ImportError:
 # category of "why isn't my tracker showing up anywhere" confusion.
 LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
 SERVER_CONFIG_NAME = "focusguard_server.json"
+ONLINE_TIMEOUT_SECONDS = 20.0
 # Where an online tracker remembers its sign-in between launches.
 SESSION_FILE = Path.home() / ".focusguard" / "tracker_session.json"
 
@@ -84,7 +86,16 @@ class BackendClient:
         self.base_url = (base_url or os.environ.get("TRACKER_BACKEND_URL", DEFAULT_BACKEND_URL)).rstrip("/")
         self.username = username or os.environ.get("TRACKER_USERNAME")
         self.password = password or os.environ.get("TRACKER_PASSWORD")
-        self.timeout = timeout
+        # A server on this machine answers in milliseconds; an online one is
+        # often seconds away (distance, a small free-tier CPU hashing the
+        # password), so it gets a far longer wait before giving up.
+        self.timeout = timeout if _is_local_url(self.base_url) else max(timeout, ONLINE_TIMEOUT_SECONDS)
+        # Online only: background workers so seconds-long round-trips never
+        # stall the tracker's window polling (see _send_in_background).
+        self._sender: Optional[ThreadPoolExecutor] = None
+        self._reader: Optional[ThreadPoolExecutor] = None
+        self._read_cache: dict = {}
+        self._read_pending: dict = {}
 
         self.user_id: Optional[int] = None
         self._token: Optional[str] = None
@@ -276,7 +287,62 @@ class BackendClient:
                   f"Local JSONL logging continues normally.", file=sys.stderr)
             self._warned = True
 
+    # ---- Sending: inline locally, in the background online ----------------
+    # A local server answers in milliseconds, so calls stay inline exactly as
+    # before. An online one can take seconds per call; doing that inline
+    # would freeze window polling and misattribute time, so online sends go
+    # through one background worker (keeping their order) and status reads
+    # return the latest known answer while refreshing in the background.
+
+    def _online(self) -> bool:
+        return not _is_local_url(self.base_url)
+
+    def _send_in_background(self, fn, *args) -> bool:
+        if not self._online():
+            return False
+        if self._sender is None:
+            self._sender = ThreadPoolExecutor(max_workers=1, thread_name_prefix="focusguard-send")
+        self._sender.submit(fn, *args)
+        return True
+
+    def _latest(self, key: str, fn):
+        if not self._online():
+            return fn()
+        if self._reader is None:
+            self._reader = ThreadPoolExecutor(max_workers=1, thread_name_prefix="focusguard-read")
+        pending = self._read_pending.get(key)
+        if pending is not None and pending.done():
+            self._read_cache[key] = pending.result()
+            pending = None
+        if pending is None:
+            self._read_pending[key] = self._reader.submit(fn)
+        return self._read_cache.get(key)
+
     def post_session(self, record: dict) -> None:
+        if not self._send_in_background(self._post_session_now, record):
+            self._post_session_now(record)
+
+    def post_switch(self, record: dict) -> None:
+        if not self._send_in_background(self._post_switch_now, record):
+            self._post_switch_now(record)
+
+    def post_live_status(self, name: str, category: str) -> None:
+        if not self._send_in_background(self._post_live_status_now, name, category):
+            self._post_live_status_now(name, category)
+
+    def get_extension_browsers(self) -> Optional[set]:
+        return self._latest("extension_browsers", self._get_extension_browsers_now)
+
+    def get_active_focus_session(self) -> Optional[dict]:
+        return self._latest("focus_session", self._get_active_focus_session_now)
+
+    def flush(self) -> None:
+        """Waits for queued online sends (e.g. the final session on exit)."""
+        if self._sender is not None:
+            self._sender.shutdown(wait=True)
+            self._sender = None
+
+    def _post_session_now(self, record: dict) -> None:
         if not self.enabled:
             return
         try:
@@ -286,7 +352,7 @@ class BackendClient:
         except Exception as exc:
             self._disable(f"session post failed: {exc}")
 
-    def post_switch(self, record: dict) -> None:
+    def _post_switch_now(self, record: dict) -> None:
         if not self.enabled:
             return
         try:
@@ -296,7 +362,7 @@ class BackendClient:
         except Exception as exc:
             self._disable(f"switch post failed: {exc}")
 
-    def post_live_status(self, name: str, category: str) -> None:
+    def _post_live_status_now(self, name: str, category: str) -> None:
         """Feature 7 (novelty): pushes "here's what I'm looking at right
         now" so the web dashboard's Focus Mode page can show a live
         current-app card, alongside whatever the browser extension is
@@ -469,7 +535,7 @@ class BackendClient:
             print(f"[warn] get_insights failed: {exc}", file=sys.stderr)
             return None
 
-    def get_extension_browsers(self) -> Optional[set]:
+    def _get_extension_browsers_now(self) -> Optional[set]:
         """Browsers the extension is currently tracking for this account
         (chrome, msedge, ...) - the tracker leaves those browsers' windows
         to the extension so the same minutes aren't counted twice. None if
@@ -483,7 +549,7 @@ class BackendClient:
         except Exception:
             return None
 
-    def get_active_focus_session(self) -> Optional[dict]:
+    def _get_active_focus_session_now(self) -> Optional[dict]:
         """The account's running Focus Mode session (started from the
         dashboard, extension or tracker), or None. Never raises."""
         if not self.enabled:

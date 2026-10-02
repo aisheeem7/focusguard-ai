@@ -3,7 +3,10 @@
 **AI-Powered Digital Attention Management System — Distraction Detection & Focus Enhancement**
 Infosys Springboard Internship 2026 · Aishee Mukherjee
 
-FocusGuard watches which apps and browser tabs you use, classifies each one as **productive**, **distracting** or **neutral**, and helps you build focus habits with Focus Mode, streaks, badges, a group leaderboard and AI-written weekly insights. Everything runs locally on your own computer.
+FocusGuard watches which apps and browser tabs you use, classifies each one as **productive**, **distracting** or **neutral**, and helps you build focus habits with Focus Mode, streaks, badges, a group leaderboard and AI-written weekly insights. Use it online, or run it entirely on your own computer.
+
+**▶ Try it:** **[focusguard-ai-y4tt.onrender.com](https://focusguard-ai-y4tt.onrender.com)**. Sign up, then optionally install it as an app from the address bar.
+**⬇ Downloads:** [Windows tracker + Chrome extension](https://github.com/aisheeem7/focusguard-ai/releases/latest). Setup steps are on the release page.
 
 ---
 
