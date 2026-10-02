@@ -26,14 +26,12 @@ if not DATABASE_URL.startswith(("sqlite", "postgres://", "postgresql://", "postg
         "DATABASE_URL must be a PostgreSQL connection string starting with postgresql:// "
         "(copy it from your Neon project's Connect dialog)."
     )
-# Some hosts hand out "postgres://..." URLs, which SQLAlchemy only accepts
-# under the "postgresql://" name; and Neon's SQLAlchemy snippet names a
-# specific driver ("postgresql+psycopg://", "+asyncpg"...). The app ships
-# psycopg2, so any of these is normalised to plain "postgresql://".
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
-elif DATABASE_URL.startswith("postgresql+"):
-    DATABASE_URL = "postgresql://" + DATABASE_URL.split("://", 1)[1]
+# The app ships the psycopg2 driver, so every Postgres URL form is pinned
+# to it explicitly: "postgres://" (some hosts), plain "postgresql://"
+# (SQLAlchemy 2.1+ would otherwise default to psycopg 3), and driver-named
+# ones like Neon's "postgresql+psycopg://" or "+asyncpg".
+if DATABASE_URL.startswith(("postgres://", "postgresql://", "postgresql+")):
+    DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL.split("://", 1)[1]
     # asyncpg-style "ssl=require" means "sslmode=require" to psycopg2.
     DATABASE_URL = re.sub(r"([?&])ssl=", r"\1sslmode=", DATABASE_URL)
 
