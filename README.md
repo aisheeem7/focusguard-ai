@@ -51,6 +51,30 @@ Apps are recognised by program, so Word counts as one app whichever document is 
 
 Use the **same account** everywhere, and your tabs and apps appear together on one dashboard.
 
+## 🆕 What's new in v1.1
+
+**Desktop app tracking is now reliable.** Before, apps like Word and File Explorer were often not tracked or classified. The website can't see desktop apps, and the tracker stopped whenever its window was closed.
+
+- **Apps are recognised by program.** Word, Excel, PowerPoint, File Explorer, VS Code, Teams, Calculator, Settings and about 90 others are identified from their program file. Word stays "Microsoft Word" whichever document is open, and opening another folder in File Explorer isn't counted as a switch.
+- **Better classification.** Category lists now match whole words, so "password" isn't mistaken for Word. Unknown apps are classified once by the server in the background, so the tracker never freezes waiting for it.
+- **Start with Windows.** After you sign in, the tracker offers to run quietly in the background from every Windows start-up. New commands: `--stop`, `--remove-startup`, `--sign-out`, `--background`, `--idle-minutes`.
+- **Idle time isn't counted.** Tracking pauses after 5 minutes without keyboard or mouse input. Video players are exempt.
+- **Connection status on the dashboard.** The Overview page shows whether your desktop tracker is connected, or how to set it up if it isn't. This works in all 5 languages.
+
+**Files updated**
+
+| File | Change |
+|---|---|
+| `window_tracker.py` | Identifies apps by program, classifies in the background, detects idle time, and adds background mode, start-with-Windows and stop/sign-out commands |
+| `app_categories.json` | New `processes` table (program file → app name and category) and an updated ignore list |
+| `backend_client.py` | Lets the server know the tracker is running; sign-out helper |
+| `backend/main.py`, `backend/schemas.py` | `/tracker/status` reports whether the desktop tracker is connected |
+| `frontend/app.html`, `js/app.js`, `js/api.js`, `css/dashboard.css`, `locales/*` | "Desktop tracker" status card on the Overview page |
+| `backend/tests/test_window_tracker.py` (new), `backend/tests/test_backend.py` | 7 new tests (59 in total) |
+| `scripts/build_release.py` | Builds reliably inside OneDrive/Dropbox folders |
+
+Get the new tracker from the **[v1.1 release](https://github.com/aisheeem7/focusguard-ai/releases/tag/v1.1)**.
+
 ## 🧭 How to use it
 
 | Page | What you do there |
@@ -134,7 +158,7 @@ Options: `--no-tracker` (website only), `--no-build` (skip the build check), `--
 ```bash
 python -m pytest backend/tests -q
 ```
-52 automated tests cover accounts, tracking, classification, streaks, badges, groups, Focus Mode, insights, history and online mode. To run the same tests against PostgreSQL, add `TEST_DATABASE_URL=postgresql://...`.
+59 automated tests cover accounts, tracking, desktop app recognition, classification, streaks, badges, groups, Focus Mode, insights, history and online mode. To run the same tests against PostgreSQL, add `TEST_DATABASE_URL=postgresql://...`.
 
 ### Deploy your own copy
 To host your own online version (Render + Neon, both free) and build the Windows tracker and extension downloads, follow **[DEPLOY.md](DEPLOY.md)**.
@@ -160,7 +184,7 @@ To host your own online version (Render + Neon, both free) and build the Windows
 ├── backend_client.py         tracker ↔ backend connection
 ├── notifier.py               desktop notifications
 ├── llm_classifier.py         tracker's direct AI fallback
-├── app_categories.json       productive / distraction / neutral lists (shared with the backend)
+├── app_categories.json       known programs + productive / distraction / neutral lists (shared with the backend)
 ├── reset_password.py         local password reset utility
 ├── demo_features.py          prints each feature's output, for demos
 ├── backend/                  FastAPI app: main.py, models, schemas, auth, tests/
