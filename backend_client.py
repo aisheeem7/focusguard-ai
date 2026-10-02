@@ -74,6 +74,16 @@ def _is_local_url(url: str) -> bool:
     return (urlparse(url).hostname or "") in ("127.0.0.1", "localhost", "::1")
 
 
+def forget_saved_session(base_url: str) -> None:
+    """Drops this computer's saved sign-in for one server."""
+    try:
+        sessions = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+        sessions.pop(base_url.rstrip("/"), None)
+        SESSION_FILE.write_text(json.dumps(sessions, indent=2), encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
+
 class BackendClient:
     def __init__(
         self,
@@ -224,12 +234,7 @@ class BackendClient:
             pass  # just means logging in again next launch
 
     def _forget_saved_session(self) -> None:
-        try:
-            sessions = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
-            sessions.pop(self.base_url, None)
-            SESSION_FILE.write_text(json.dumps(sessions, indent=2), encoding="utf-8")
-        except (OSError, ValueError):
-            pass
+        forget_saved_session(self.base_url)
 
     def _prompt_for_credentials(self) -> None:
         print(f"[info] Not connected to the backend ({self.base_url}). Log in with the SAME "
@@ -296,6 +301,18 @@ class BackendClient:
 
     def _online(self) -> bool:
         return not _is_local_url(self.base_url)
+
+    @property
+    def online(self) -> bool:
+        """True for a server elsewhere (seconds away), False for one on
+        this machine (milliseconds away)."""
+        return self._online()
+
+    @property
+    def has_sign_in(self) -> bool:
+        """Signed in - even if the server is asleep right now and syncing
+        will resume once it answers."""
+        return self._token is not None
 
     def _send_in_background(self, fn, *args) -> bool:
         if not self._online():
@@ -543,7 +560,10 @@ class BackendClient:
         if not self.enabled:
             return None
         try:
-            r = requests.get(f"{self.base_url}/tracker/status", headers=self._headers(), timeout=self.timeout)
+            # The header tells the server this desktop tracker is running,
+            # so the dashboard can show whether desktop apps are covered.
+            r = requests.get(f"{self.base_url}/tracker/status",
+                             headers={**self._headers(), "X-FocusGuard-Client": "tracker"}, timeout=self.timeout)
             r.raise_for_status()
             return set(r.json().get("extension_browsers", []))
         except Exception:

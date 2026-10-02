@@ -249,6 +249,18 @@
           "desc": "Rank #1 in your group this week."
         }
       }
+    },
+    "tracker": {
+      "online": "Desktop tracker connected - your apps are being tracked",
+      "title": "Your desktop apps aren't being tracked",
+      "body": "A website can't see apps like Word, File Explorer or VS Code. FocusGuard's small desktop tracker can - run it once and it tracks them for you.",
+      "step_download": "Download the tracker and open it.",
+      "step_sign_in": "Sign in with this same account.",
+      "step_startup": "Choose \"Start with Windows\" - it then runs quietly in the background every day.",
+      "download": "Download for Windows",
+      "windows_only": "Windows 10/11. Already installed? It starts with Windows - or open it again.",
+      "local_body": "The desktop tracker isn't running. It starts by itself when you sign in here; if it doesn't, start FocusGuard with python launch_focusguard.py.",
+      "dismiss": "Hide"
     }
   }
 }

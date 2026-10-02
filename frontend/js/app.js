@@ -247,6 +247,7 @@ function initShell() {
 // ---- Overview ----
 
 async function loadOverview() {
+  startTrackerStatusPoll();
   // Started together, and each card renders as soon as its own data
   // lands - none of them waits behind the (slower, LLM-backed) insights.
   const insightsReq = Api.getInsights(userId, { language: getCurrentLanguage() });
@@ -299,6 +300,69 @@ async function loadOverview() {
   } })();
 
   await Promise.all([statsDone, streakDone, boardDone]);
+}
+
+// ---- Desktop tracker status (Overview) ----
+// A web page can't see desktop apps like Word or File Explorer - only the
+// desktop tracker can. This card says whether it's running for this
+// account, and how to get it when it isn't.
+
+const TRACKER_DOWNLOAD_URL = 'https://github.com/aisheeem7/focusguard-ai/releases/latest/download/FocusGuard-Tracker.exe';
+const TRACKER_STATUS_POLL_MS = 20000;
+let trackerStatusPoll = null;
+
+function trackerCardDismissed() {
+  try { return localStorage.getItem('fg_hide_tracker_setup') === '1'; } catch (e) { return false; }
+}
+
+async function loadTrackerSetupCard() {
+  const el = document.getElementById('tracker-setup');
+  if (!el) return;
+  let status;
+  try {
+    status = await Api.getTrackerStatus();
+  } catch (err) {
+    return; // the rest of the overview already reports an unreachable backend
+  }
+  if (status.system_tracker_online) {
+    el.hidden = false;
+    el.innerHTML = `<div class="tracker-ok"><span class="pill pill-success">${icon('check', 16)} ${t('dashboard.tracker.online')}</span></div>`;
+    return;
+  }
+  if (trackerCardDismissed()) {
+    el.hidden = true;
+    return;
+  }
+  const steps = status.local_mode
+    ? `<p>${t('dashboard.tracker.local_body')}</p>`
+    : `<p>${t('dashboard.tracker.body')}</p>
+       <ol class="tracker-steps">
+         <li>${t('dashboard.tracker.step_download')}</li>
+         <li>${t('dashboard.tracker.step_sign_in')}</li>
+         <li>${t('dashboard.tracker.step_startup')}</li>
+       </ol>
+       <div class="tracker-actions">
+         <a class="btn btn-primary" href="${TRACKER_DOWNLOAD_URL}">${t('dashboard.tracker.download')}</a>
+         <span class="tracker-note">${t('dashboard.tracker.windows_only')}</span>
+       </div>`;
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="card tracker-setup">
+      <div class="tracker-setup-head">
+        <h3>${t('dashboard.tracker.title')}</h3>
+        <button type="button" class="btn btn-ghost tracker-dismiss" id="tracker-dismiss">${t('dashboard.tracker.dismiss')}</button>
+      </div>
+      ${steps}
+    </div>`;
+  document.getElementById('tracker-dismiss').addEventListener('click', () => {
+    try { localStorage.setItem('fg_hide_tracker_setup', '1'); } catch (e) { /* hiding just won't stick */ }
+    el.hidden = true;
+  });
+}
+
+function startTrackerStatusPoll() {
+  loadTrackerSetupCard();
+  if (!trackerStatusPoll) trackerStatusPoll = setInterval(loadTrackerSetupCard, TRACKER_STATUS_POLL_MS);
 }
 
 // ---- Activity grid (Overview) ----

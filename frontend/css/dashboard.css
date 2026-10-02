@@ -234,6 +234,7 @@ html[data-theme="light"] body.app-body {
 .app-body .pill-alert { background: rgba(227, 166, 188, 0.18); color: var(--alert-text); }
 .app-body .pill-achieve { background: rgba(224, 168, 92, 0.18); color: var(--marigold-deep); border: 1px solid rgba(224, 168, 92, 0.25); }
 html[data-theme="light"] .app-body .pill-achieve { color: #A86F22; }
+.app-body .pill-success { background: rgba(127, 199, 170, 0.16); color: var(--success-text); }
 
 /* --- Sidebar: the "grove path" nav --- */
 .grove-sidebar {
@@ -801,3 +802,17 @@ html[data-sidebar="collapsed"] #logout-btn { padding-left: 0; padding-right: 0; 
   .scene-banner { padding-top: var(--space-2); }
   .scene-banner h2 { font-size: var(--step-3); }
 }
+
+/* --- Desktop tracker status (Overview) --- */
+#tracker-setup { margin-bottom: var(--space-3); }
+.tracker-ok { display: flex; }
+.tracker-ok .pill { gap: 0.45em; }
+.tracker-setup { border-color: rgba(224, 168, 92, 0.35); text-align: left; }
+.tracker-setup-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); margin-bottom: 0.5em; }
+.tracker-setup-head h3 { font-size: var(--step-1); }
+.tracker-dismiss { flex-shrink: 0; padding: 0.35em 0.9em; font-size: var(--step--1); }
+.tracker-setup p { color: var(--text-soft); max-width: 70ch; margin-left: 0; margin-right: 0; }
+.tracker-steps { margin: 0 0 var(--space-2); padding-left: 1.3em; color: var(--text); }
+.tracker-steps li { margin-bottom: 0.25em; }
+.tracker-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.tracker-note { font-size: var(--step--1); color: var(--text-soft); }

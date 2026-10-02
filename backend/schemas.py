@@ -285,6 +285,11 @@ class TrackerStatusResponse(BaseModel):
     # Browsers the extension has checked in from recently - the system
     # tracker leaves those browsers' windows to the extension.
     extension_browsers: list[str]
+    # Whether this account's desktop tracker has checked in within the
+    # last minute - a website can't see desktop apps on its own.
+    system_tracker_online: bool = False
+    # The server runs on this machine (it can start the tracker itself).
+    local_mode: bool = False
 
 
 # ---- Badges (achievement catalog) ----

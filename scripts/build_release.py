@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -71,7 +72,9 @@ def build_tracker(server: str) -> Path:
         "--name", "FocusGuard-Tracker",
         "--icon", str(ROOT / "logo.ico"),
         "--distpath", str(RELEASE),
-        "--workpath", str(BUILD / "pyinstaller"),
+        # Outside the repo: a synced folder (OneDrive, Dropbox) locks
+        # PyInstaller's scratch files, and --clean then fails to delete them.
+        "--workpath", str(Path(tempfile.gettempdir()) / "focusguard-pyinstaller"),
         "--specpath", str(BUILD),
         "--add-data", f"{ROOT / 'app_categories.json'}{sep}.",
         "--add-data", f"{ROOT / 'logo.ico'}{sep}.",

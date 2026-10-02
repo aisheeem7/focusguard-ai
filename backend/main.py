@@ -1057,6 +1057,10 @@ _tracker_proc: Optional[subprocess.Popen] = None
 # {user_id: {client: last_seen}} - in memory on purpose: it's "is the
 # extension running right now", which a backend restart rightly resets.
 _extension_seen: dict = defaultdict(dict)
+# {user_id: last_seen} for the desktop tracker, which checks in every
+# ~15s - lets the dashboard say whether desktop apps are being tracked.
+_system_tracker_seen: dict = {}
+SYSTEM_TRACKER_PRESENCE_WINDOW = timedelta(seconds=60)
 
 
 def _note_extension_presence(user_id: int, client: Optional[str]) -> None:
@@ -1162,10 +1166,18 @@ def extension_ping(payload: ExtensionPing, current_user: User = Depends(get_curr
 
 
 @app.get("/tracker/status", response_model=TrackerStatusResponse)
-def tracker_status(current_user: User = Depends(get_current_user)):
-    cutoff = datetime.utcnow() - EXTENSION_PRESENCE_WINDOW
+def tracker_status(request: Request, current_user: User = Depends(get_current_user)):
+    now = datetime.utcnow()
+    if request.headers.get("x-focusguard-client") == "tracker":
+        _system_tracker_seen[current_user.id] = now
+    cutoff = now - EXTENSION_PRESENCE_WINDOW
     seen = _extension_seen.get(current_user.id, {})
-    return TrackerStatusResponse(extension_browsers=sorted(c for c, t in seen.items() if t >= cutoff))
+    last_tracker = _system_tracker_seen.get(current_user.id)
+    return TrackerStatusResponse(
+        extension_browsers=sorted(c for c, t in seen.items() if t >= cutoff),
+        system_tracker_online=last_tracker is not None and now - last_tracker < SYSTEM_TRACKER_PRESENCE_WINDOW,
+        local_mode=not CLOUD_MODE,
+    )
 
 
 # ---- Live status (Feature 7: novelty) ----
@@ -1186,6 +1198,8 @@ def update_live_status(
 ):
     if payload.source == "extension":
         _note_extension_presence(current_user.id, payload.client)
+    elif payload.source == "system":
+        _system_tracker_seen[current_user.id] = datetime.utcnow()
     row = db.query(LiveStatus).filter(LiveStatus.user_id == current_user.id).first()
     if row is None:
         row = LiveStatus(user_id=current_user.id, source=payload.source, name=payload.name, category=payload.category)

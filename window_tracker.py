@@ -48,9 +48,21 @@ Usage:
     python window_tracker.py --config app_categories.json
     python window_tracker.py --no-ui                    # plain text, no rich table
     python window_tracker.py --no-llm                   # skip Haiku fallback
+    python window_tracker.py --idle-minutes 5           # stop counting after 5 min without input
+    python window_tracker.py --background               # no window; logs to ~/.focusguard/tracker.log
+    python window_tracker.py --install-startup          # Windows: start with Windows, in the background
+    python window_tracker.py --remove-startup
+    python window_tracker.py --stop                     # stop a tracker running in the background
+    python window_tracker.py --sign-out                 # forget the saved online sign-in
 
 Category logic
 --------------
+- Desktop apps are recognised by their program (WINWORD.EXE, explorer.exe...)
+  through the "processes" table in app_categories.json, so a session is
+  "Microsoft Word" whichever document is open, and opening another folder
+  in File Explorer isn't counted as switching apps. Other programs are
+  named from their own file description and classified once (backend AI,
+  cached).
 - "productive": never triggers the distraction alert, no matter how high
   total_switch_count gets.
 - "distraction": every switch INTO one of these increments
@@ -86,14 +98,16 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from llm_classifier import LLMClassifier
-from backend_client import BackendClient
+from backend_client import DEFAULT_BACKEND_URL, BackendClient, forget_saved_session
 from notifier import DesktopNotifier
 
 try:
@@ -115,6 +129,21 @@ BACKEND_SYNC_SECONDS = 15
 # by the launcher and one by the backend at the same moment) exits
 # instead of double-counting every minute.
 SINGLE_INSTANCE_PORT = 47821
+# Where a background tracker writes its output, and remembers that the
+# "start with Windows?" question was already answered.
+STATE_DIR = Path.home() / ".focusguard"
+BACKGROUND_LOG = STATE_DIR / "tracker.log"
+PREFS_FILE = STATE_DIR / "tracker_prefs.json"
+STARTUP_VALUE_NAME = "FocusGuard Tracker"
+# Returned while an online classification is still on its way, so the
+# polling loop never waits seconds on the server.
+PENDING = "pending"
+
+
+def _whole_word_in(entry: str, text: str) -> bool:
+    # "word" must not fire inside "password", "git" inside "digital",
+    # "steam" inside "livestream".
+    return re.search(r"(?<![\w])" + re.escape(entry) + r"(?![\w])", text) is not None
 
 
 # --------------------------------------------------------------------------
@@ -144,10 +173,15 @@ class AppCategorizer:
         self.ambiguous: list[str] = []
         self.neutral: list[str] = []
         self.ignore: list[str] = []
+        self.processes: dict[str, tuple[str, str]] = {}  # "winword" -> ("Microsoft Word", "productive")
         self.llm_classifier = llm_classifier
         self.backend = backend
         self._backend_cache: dict[str, str] = {}  # avoids an HTTP round-trip on every repeat switch to an already-known app
         self._title_cache: dict[str, str] = {}
+        # Online lookups run here, off the polling loop - a cold one can
+        # take the server many seconds (LLM providers, a sleeping host).
+        self._executor: Optional[ThreadPoolExecutor] = None
+        self._pending: dict[tuple[str, str], Future] = {}
         self._load(config_path)
 
     def _load(self, config_path: Path) -> None:
@@ -165,36 +199,75 @@ class AppCategorizer:
         self.ambiguous = [s.lower() for s in data.get("ambiguous", [])]
         self.neutral = [s.lower() for s in data.get("neutral", [])]
         self.ignore = [s.lower() for s in data.get("ignore", [])]
+        self.processes = {
+            proc.lower(): (entry[0], entry[1].lower())
+            for proc, entry in data.get("processes", {}).items()
+            if isinstance(entry, list) and len(entry) == 2
+        }
 
-    def should_ignore(self, app_name: str) -> bool:
+    def known_app(self, process: str) -> Optional[tuple[str, str]]:
+        """(display name, category) for a program in the "processes"
+        table, by executable name - "WINWORD" -> ("Microsoft Word",
+        "productive") - or None."""
+        return self.processes.get((process or "").strip().lower())
+
+    def should_ignore(self, app_name: str, process: str = "") -> bool:
+        if (process or "").strip().lower() in self.ignore:
+            return True
         name = app_name.lower()
-        return any(k in name for k in self.ignore)
+        return any(_whole_word_in(k, name) for k in self.ignore)
+
+    def _static_category(self, name: str) -> Optional[str]:
+        for category, entries in (("distraction", self.distraction), ("productive", self.productive),
+                                  ("ambiguous", self.ambiguous), ("neutral", self.neutral)):
+            if any(_whole_word_in(k, name) for k in entries):
+                return category
+        return None
+
+    def _backend_answer(self, kind: str, key: str, ask: Callable[[str], Optional[str]], text: str) -> Optional[str]:
+        """A cached answer; else asks the backend - inline when it's on
+        this machine (milliseconds), in the background when it's online,
+        returning PENDING until the answer lands. None when there's no
+        backend to ask or it couldn't answer."""
+        cache = self._title_cache if kind == "title" else self._backend_cache
+        if key in cache:
+            return cache[key]
+        if self.backend is None or not self.backend.enabled:
+            return None
+        if not self.backend.online:
+            result = ask(text)
+            if result is not None:
+                cache[key] = result
+            return result
+        future = self._pending.get((kind, key))
+        if future is None:
+            if self._executor is None:
+                self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="focusguard-classify")
+            self._pending[(kind, key)] = self._executor.submit(ask, text)
+            return PENDING
+        if not future.done():
+            return PENDING
+        del self._pending[(kind, key)]
+        result = future.result()
+        if result is not None:
+            cache[key] = result
+        return result
 
     def raw_categorize(self, app_name: str) -> str:
-        """Returns 'productive' | 'distraction' | 'ambiguous' | 'neutral',
-        consulting the shared backend classifier (then a local LLM
-        fallback) only for names not in any config list. 'ambiguous'
-        stays purely local/static (AmbiguousResolver's terminal prompt) -
-        it's a "ask the user, not an LLM" concept the backend's three-way
-        productive/distraction/neutral classifier has no equivalent for."""
+        """Returns 'productive' | 'distraction' | 'ambiguous' | 'neutral'
+        (or PENDING while an online lookup is in flight), consulting the
+        shared backend classifier (then a local LLM fallback) only for
+        names not in any config list. 'ambiguous' stays purely
+        local/static - it's a "judge what's open, then ask the user"
+        concept the backend's three-way classifier has no equivalent for."""
         name = app_name.lower()
-        if any(k in name for k in self.distraction):
-            return "distraction"
-        if any(k in name for k in self.productive):
-            return "productive"
-        if any(k in name for k in self.ambiguous):
-            return "ambiguous"
-        if any(k in name for k in self.neutral):
-            return "neutral"
+        static = self._static_category(name)
+        if static is not None:
+            return static
 
-        key = name.strip()
-        if key in self._backend_cache:
-            return self._backend_cache[key]
-        if self.backend is not None and self.backend.enabled:
-            result = self.backend.classify(app_name)
-            if result is not None:
-                self._backend_cache[key] = result
-                return result
+        result = self._backend_answer("app", name.strip(), self.backend.classify if self.backend else None, app_name)
+        if result is not None:
+            return result
         if self.llm_classifier is not None:
             return self.llm_classifier.classify(app_name)
         return "neutral"
@@ -204,18 +277,12 @@ class AppCategorizer:
         browser page the extension isn't covering, a YouTube video, a
         file open in VLC - via the backend's keyword/curated-list/LLM
         chain. None when the backend can't answer, so callers can fall
-        back to the static lists or the interactive prompt."""
+        back to the static lists or the interactive prompt; PENDING while
+        an online lookup is in flight."""
         key = title.strip().lower()
         if not key:
             return None
-        if key in self._title_cache:
-            return self._title_cache[key]
-        if self.backend is None or not self.backend.enabled:
-            return None
-        result = self.backend.classify_title(title)
-        if result is not None:
-            self._title_cache[key] = result
-        return result
+        return self._backend_answer("title", key, self.backend.classify_title if self.backend else None, title)
 
 
 # --------------------------------------------------------------------------
@@ -287,39 +354,113 @@ class WindowBackendError(RuntimeError):
     pass
 
 
-def _get_active_window_windows() -> Optional[tuple[str, str]]:
+@dataclass
+class ActiveWindow:
+    name: str          # "WINWORD - Report.docx - Word": process + title, as always logged
+    process: str = ""  # executable without .exe ("WINWORD"), or the app name on macOS/Linux
+    title: str = ""    # the window's own title
+    app: str = ""      # the program's own name from its file description ("Microsoft Word"), if any
+
+
+# The desktop wallpaper and the taskbar belong to explorer.exe too, but
+# they aren't File Explorer - clicking them means no app is in use.
+_SHELL_WINDOW_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd",
+                         "NotifyIconOverflowWindow", "TopLevelWindowForOverflowXamlIsland"}
+_app_name_cache: dict[str, str] = {}
+
+
+def _file_description(exe_path: str) -> str:
+    """The name a program gives itself ("Microsoft Word" for WINWORD.EXE,
+    "Visual Studio Code" for Code.exe) - stable whatever's open in it."""
+    if exe_path in _app_name_cache:
+        return _app_name_cache[exe_path]
+    description = ""
+    try:
+        import win32api
+        lang, codepage = win32api.GetFileVersionInfo(exe_path, "\\VarFileInfo\\Translation")[0]
+        description = win32api.GetFileVersionInfo(
+            exe_path, f"\\StringFileInfo\\{lang:04X}{codepage:04X}\\FileDescription") or ""
+    except Exception:
+        pass
+    _app_name_cache[exe_path] = description.strip()
+    return _app_name_cache[exe_path]
+
+
+def _process_details(pid: int) -> tuple[str, str]:
+    """(executable name without .exe, file description) for a process."""
+    import psutil
+    proc = psutil.Process(pid)
+    process = Path(proc.name()).stem
+    try:
+        exe = proc.exe()  # can be refused for elevated apps like Task Manager
+    except Exception:
+        exe = ""
+    return process, (_file_description(exe) if exe else "")
+
+
+def _uwp_app_pid(hwnd: int, frame_pid: int) -> Optional[int]:
+    """Store apps (Calculator, Settings, Photos, Media Player) all show up
+    as ApplicationFrameHost.exe; the real app owns a child window."""
     import win32gui
     import win32process
-    import psutil
+    found: list[int] = []
+
+    def visit(child, _):
+        _, pid = win32process.GetWindowThreadProcessId(child)
+        if pid != frame_pid:
+            found.append(pid)
+            return False
+        return True
+
+    try:
+        win32gui.EnumChildWindows(hwnd, visit, None)
+    except Exception:
+        pass  # returning False from the callback stops enumeration and raises on some pywin32 builds
+    return found[0] if found else None
+
+
+def _get_active_window_windows() -> Optional[ActiveWindow]:
+    import win32gui
+    import win32process
 
     hwnd = win32gui.GetForegroundWindow()
     if not hwnd:
         return None
+    try:
+        if win32gui.GetClassName(hwnd) in _SHELL_WINDOW_CLASSES:
+            return None  # desktop or taskbar: no app in use
+    except Exception:
+        pass
     title = win32gui.GetWindowText(hwnd)
     if not title:
         return None
     try:
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        proc = psutil.Process(pid)
-        app_name = Path(proc.name()).stem
+        process, app = _process_details(pid)
+        if process.lower() == "applicationframehost":
+            child_pid = _uwp_app_pid(hwnd, pid)
+            if child_pid:
+                process, app = _process_details(child_pid)
+            else:
+                process, app = "", title  # minimised/suspended Store app: its title is its name
         # Combine process name + title so browser tab titles (which carry
         # the actual site name) are still visible to the categorizer.
-        name = f"{app_name} - {title}" if app_name.lower() not in title.lower() else title
-        return name, app_name
+        name = f"{process} - {title}" if process and process.lower() not in title.lower() else title
+        return ActiveWindow(name=name, process=process, title=title, app=app)
     except Exception:
-        return title, ""
+        return ActiveWindow(name=title, title=title)
 
 
-def _get_active_window_macos() -> Optional[tuple[str, str]]:
+def _get_active_window_macos() -> Optional[ActiveWindow]:
     from AppKit import NSWorkspace
     active_app = NSWorkspace.sharedWorkspace().activeApplication()
     if not active_app:
         return None
     name = active_app.get("NSApplicationName")
-    return (name, name) if name else None
+    return ActiveWindow(name=name, process=name, title=name, app=name) if name else None
 
 
-def _get_active_window_linux() -> Optional[tuple[str, str]]:
+def _get_active_window_linux() -> Optional[ActiveWindow]:
     try:
         win_id = subprocess.check_output(["xdotool", "getactivewindow"], stderr=subprocess.DEVNULL).decode().strip()
         if not win_id:
@@ -327,19 +468,17 @@ def _get_active_window_linux() -> Optional[tuple[str, str]]:
         wm_class = subprocess.check_output(["xdotool", "getwindowclassname", win_id], stderr=subprocess.DEVNULL).decode().strip()
         title = subprocess.check_output(["xdotool", "getwindowname", win_id], stderr=subprocess.DEVNULL).decode().strip()
         if wm_class and title:
-            return f"{wm_class} - {title}", wm_class
+            return ActiveWindow(name=f"{wm_class} - {title}", process=wm_class, title=title)
         name = wm_class or title
-        return (name, wm_class) if name else None
+        return ActiveWindow(name=name, process=wm_class, title=title) if name else None
     except FileNotFoundError as exc:
         raise WindowBackendError("xdotool is not installed. Install it with: sudo apt-get install xdotool wmctrl") from exc
     except subprocess.CalledProcessError:
         return None
 
 
-def get_active_window_info() -> Optional[tuple[str, str]]:
-    """(display name, process/app name) of the foreground window, or None.
-    The process name is what tells a browser window apart from an app
-    whose title merely mentions a browser."""
+def get_active_window() -> Optional[ActiveWindow]:
+    """The foreground window, or None when no app is in use."""
     system = platform.system()
     if system == "Windows":
         return _get_active_window_windows()
@@ -349,6 +488,35 @@ def get_active_window_info() -> Optional[tuple[str, str]]:
         return _get_active_window_linux()
     else:
         raise WindowBackendError(f"Unsupported platform: {system}")
+
+
+def get_active_window_info() -> Optional[tuple[str, str]]:
+    """(display name, process/app name) of the foreground window, or None.
+    The process name is what tells a browser window apart from an app
+    whose title merely mentions a browser."""
+    window = get_active_window()
+    return (window.name, window.process) if window else None
+
+
+def seconds_since_last_input() -> Optional[float]:
+    """How long the keyboard and mouse have been untouched (Windows), or
+    None where that can't be read."""
+    if platform.system() != "Windows":
+        return None
+    try:
+        import ctypes
+
+        class LASTINPUTINFO(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+
+        info = LASTINPUTINFO()
+        info.cbSize = ctypes.sizeof(info)
+        if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
+            return None
+        millis = (ctypes.windll.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF
+        return millis / 1000.0
+    except Exception:
+        return None
 
 
 def get_active_window_name() -> Optional[str]:
@@ -384,6 +552,12 @@ def page_title_from_window(window_title: str) -> str:
     # Drop a leading "chrome - " that _get_active_window_windows adds
     # when the title doesn't already name the browser.
     return _BROWSER_NAME_PREFIX.sub("", title)
+
+
+# Programs that only host someone else's app (a Java or Python program,
+# a script) - their own name says nothing, so the window title is used.
+_HOST_PROCESSES = {"java", "javaw", "python", "pythonw", "py", "electron", "msedgewebview2",
+                   "rundll32", "dllhost", "wscript", "cscript", "mshta", "conhost"}
 
 
 # --------------------------------------------------------------------------
@@ -426,6 +600,9 @@ class WindowTracker:
         notifier: Optional[DesktopNotifier] = None,
         focus_minutes: Optional[int] = None,
         break_reminder_minutes: int = 50,
+        idle_minutes: float = 5.0,
+        interactive: Optional[bool] = None,
+        stop_event: Optional[threading.Event] = None,
     ):
         self.out_path = out_path
         self.switch_out_path = switch_out_path
@@ -439,10 +616,24 @@ class WindowTracker:
         self.notifier = notifier or DesktopNotifier()  # Feature 1: native OS notifications
         self.focus_minutes = focus_minutes  # Feature 4: Focus Mode duration, if requested
         self.break_reminder_minutes = break_reminder_minutes  # Feature 6: 0 disables
+        # No keyboard/mouse input for this long ends the current session
+        # (backdated to the last input) - a PC left on Word over lunch
+        # isn't an hour of work. Media and browser windows are exempt,
+        # since watching something needs no input. 0 disables.
+        self.idle_seconds = max(0.0, idle_minutes) * 60
+        # Whether someone is at a terminal to answer "how are you using
+        # this?" - never true for a background tracker.
+        self.interactive = stdin_is_console() if interactive is None else interactive
+        self.stop_event = stop_event or threading.Event()  # set by `--stop` from another process
 
         self.resolver = AmbiguousResolver()
         self._current: Optional[Session] = None
         self._previous_name: Optional[str] = None
+        # While the current app's category is still being looked up online:
+        # the arguments to look it up again, and the switch into it, which
+        # is logged once the category is known.
+        self._pending_lookup: Optional[tuple] = None
+        self._switch_from: Optional[str] = None
         self.total_switch_count: int = 0
         self.distraction_switch_count: int = 0
         self._rows: list[dict] = []  # recent switch rows for the live table
@@ -468,7 +659,32 @@ class WindowTracker:
 
     # -- categorization -----------------------------------------------
 
-    def _resolve_category(self, app_name: str, page_title: Optional[str] = None) -> str:
+    def _identify(self, window: ActiveWindow, client: Optional[str]) -> tuple[str, Optional[str], Optional[str]]:
+        """(session name, page title to judge, category if already known)
+        for a foreground window. Desktop apps are named after the program,
+        not the window title, so opening another document in Word or
+        another folder in File Explorer isn't a switch."""
+        if client is not None:
+            return window.name, page_title_from_window(window.name), None
+        known = self.categorizer.known_app(window.process)
+        if known is not None:
+            app, category = known
+            if category == "ambiguous":
+                # VLC, Photos: what's open decides, so it stays in the name.
+                title = window.title or window.name
+                return (title if app.lower() in title.lower() else f"{app} - {title}"), None, "ambiguous"
+            return app, None, category
+        if window.process and window.process.lower() not in _HOST_PROCESSES:
+            return (window.app or window.process), None, None
+        return window.name, None, None
+
+    def _resolve_category(self, app_name: str, page_title: Optional[str] = None,
+                          known: Optional[str] = None) -> str:
+        """productive / distraction / neutral - or PENDING while an online
+        lookup is still on its way (call again later with the same
+        arguments; the answer is cached by then)."""
+        if known is not None and known != "ambiguous":
+            return known
         if page_title is not None:
             # A browser window the extension isn't covering: judge the page
             # itself (whole-word curated lists + LLM on the backend) rather
@@ -477,16 +693,16 @@ class WindowTracker:
             if by_title is not None:
                 return by_title
             app_name = page_title
-        raw = self.categorizer.raw_categorize(app_name)
+        raw = "ambiguous" if known == "ambiguous" else self.categorizer.raw_categorize(app_name)
         if raw == "ambiguous":
             # YouTube, VLC, Photos...: decide from what's actually open
             # (the video/file title) instead of stopping to ask - only an
             # unresolvable title falls back to asking, and only when
             # someone is at an interactive terminal to answer.
             by_title = self.categorizer.classify_title(app_name)
-            if by_title in ("productive", "distraction"):
+            if by_title in ("productive", "distraction", PENDING):
                 return by_title
-            if not sys.stdin.isatty():
+            if not self.interactive:
                 return "neutral"
             if self.use_ui and self._live is not None:
                 self._live.stop()
@@ -611,34 +827,71 @@ class WindowTracker:
 
     # -- switching logic ---------------------------------------------------
 
-    def _switch(self, new_name: Optional[str], page_title: Optional[str] = None) -> None:
+    def _switch(self, new_name: Optional[str], page_title: Optional[str] = None,
+                known_category: Optional[str] = None, process: str = "",
+                ended_at: Optional[datetime] = None) -> None:
+        """Moves tracking to new_name (None: no app in use). ended_at
+        backdates the end of the session being left - to the last
+        keyboard/mouse input when the user walked away."""
         now = datetime.now()
 
-        if new_name is not None and self.categorizer.should_ignore(new_name):
+        if new_name is not None and self.categorizer.should_ignore(new_name, process):
             return
 
         if self._current is not None and self._current.name != new_name:
             self._previous_name = self._current.name
-            self._current.end_dt = now
+            self._current.end_dt = now if ended_at is None else min(now, max(self._current.start_dt, ended_at))
+            if self._pending_lookup is not None:
+                # Left before its category came back: log the switch into
+                # it as neutral rather than lose it.
+                self._pending_lookup = None
+                self._log_switch_into_current()
             self._emit_session(self._current)
             self._current = None
 
         if new_name is not None and self._current is None:
-            category = self._resolve_category(new_name, page_title)
-            self._current = Session(name=new_name, start_dt=now, category=category)
-            if self._previous_name is not None:
-                self._emit_switch(self._previous_name, new_name, category)
-            self._push_live_status(now, force=True)
-
-            # Feature 6: track a continuous "productive" stretch across
-            # multiple app switches (VS Code -> Notion -> VS Code all
-            # count as one unbroken stretch); anything else resets it.
-            if category == "productive":
-                if self._productive_streak_start is None:
-                    self._productive_streak_start = now
+            category = self._resolve_category(new_name, page_title, known_category)
+            self._current = Session(name=new_name, start_dt=now,
+                                    category="neutral" if category == PENDING else category)
+            # Back on the same app after being away isn't a switch.
+            self._switch_from = self._previous_name if self._previous_name != new_name else None
+            if category == PENDING:
+                self._pending_lookup = (new_name, page_title, known_category)
+                self._push_live_status(now, force=True)
             else:
-                self._productive_streak_start = None
-                self._break_reminder_shown = False
+                self._category_known(now)
+
+    def _log_switch_into_current(self) -> None:
+        if self._switch_from is not None and self._current is not None:
+            self._emit_switch(self._switch_from, self._current.name, self._current.category)
+        self._switch_from = None
+
+    def _category_known(self, now: datetime) -> None:
+        """Runs once the current app's category is settled - straight away
+        for known apps, a moment later for an online lookup."""
+        self._log_switch_into_current()
+        self._push_live_status(now, force=True)
+
+        # Feature 6: track a continuous "productive" stretch across
+        # multiple app switches (VS Code -> Notion -> VS Code all
+        # count as one unbroken stretch); anything else resets it.
+        if self._current.category == "productive":
+            if self._productive_streak_start is None:
+                self._productive_streak_start = now
+        else:
+            self._productive_streak_start = None
+            self._break_reminder_shown = False
+
+    def _check_pending_category(self) -> None:
+        """Every tick: picks up an online classification once it lands."""
+        if self._current is None or self._pending_lookup is None:
+            return
+        category = self._resolve_category(*self._pending_lookup)
+        if category == PENDING:
+            return
+        self._pending_lookup = None
+        self._current.category = category
+        self._category_known(datetime.now())
 
     def _push_live_status(self, now: datetime, force: bool = False) -> None:
         """Feature 7 (novelty): keeps the backend's "what am I looking at
@@ -811,6 +1064,34 @@ class WindowTracker:
 
     # -- main loop -----------------------------------------------------
 
+    def _poll_window(self) -> None:
+        try:
+            window = get_active_window()
+        except WindowBackendError as exc:
+            print(f"[error] {exc}", file=sys.stderr)
+            window = None
+        except Exception as exc:  # a window closing mid-read must never stop the tracker
+            print(f"[warn] Could not read the active window: {exc}", file=sys.stderr)
+            window = None
+        if window is None:
+            self._switch(None)
+            return
+        client = browser_client(window.process)
+        if client is not None and client in self._extension_browsers:
+            # The extension is tracking this browser tab-by-tab
+            # already - stepping aside keeps the minutes from being
+            # counted twice (and its live status from being
+            # overwritten with a vaguer window title).
+            self._switch(None)
+            return
+        name, page_title, known = self._identify(window, client)
+        idle = seconds_since_last_input() if self.idle_seconds > 0 else None
+        watching = page_title is not None or known == "ambiguous"
+        if idle is not None and idle >= self.idle_seconds and not watching:
+            self._switch(None, ended_at=datetime.now() - timedelta(seconds=idle))
+            return
+        self._switch(name, page_title=page_title, known_category=known, process=window.process)
+
     def run(self) -> None:
         if not self.backend.enabled:
             print(
@@ -868,32 +1149,17 @@ class WindowTracker:
             print("Press Ctrl+C to stop.\n")
 
         try:
-            while True:
+            while not self.stop_event.is_set():
                 self._sync_with_backend()
-                try:
-                    info = get_active_window_info()
-                except WindowBackendError as exc:
-                    print(f"[error] {exc}", file=sys.stderr)
-                    info = None
-                active, process = info if info else (None, "")
-                client = browser_client(process)
-                if client is not None and client in self._extension_browsers:
-                    # The extension is tracking this browser tab-by-tab
-                    # already - stepping aside keeps the minutes from being
-                    # counted twice (and its live status from being
-                    # overwritten with a vaguer window title).
-                    self._switch(None)
-                elif client is not None and active is not None:
-                    self._switch(active, page_title=page_title_from_window(active))
-                else:
-                    self._switch(active)
+                self._poll_window()
+                self._check_pending_category()
                 self._check_stay_alert()
                 self._check_focus_mode()
                 self._check_break_reminder()
                 self._push_live_status(datetime.now())
                 if self.use_ui and self._live is not None:
                     self._live.update(self._render())
-                time.sleep(self.interval)
+                self.stop_event.wait(self.interval)
         except KeyboardInterrupt:
             pass
         finally:
@@ -943,6 +1209,18 @@ def parse_args(argv=None) -> argparse.Namespace:
                          help="Suggest a break after this many minutes of unbroken productive time "
                               "(default: whatever's configured on your account profile, or 50 if "
                               "not connected to the backend; 0 disables this feature)")
+    parser.add_argument("--idle-minutes", type=float, default=5.0, metavar="MINUTES",
+                         help="Stop counting the current app after this many minutes without keyboard "
+                              "or mouse input (default: 5; 0 disables; video/browser windows are exempt)")
+    parser.add_argument("--background", action="store_true",
+                         help="Run without a window (output goes to ~/.focusguard/tracker.log)")
+    parser.add_argument("--install-startup", action="store_true",
+                         help="Windows: start the tracker in the background whenever you sign in to Windows")
+    parser.add_argument("--remove-startup", action="store_true",
+                         help="Windows: stop starting the tracker with Windows")
+    parser.add_argument("--stop", action="store_true", help="Stop a tracker that's running in the background")
+    parser.add_argument("--sign-out", action="store_true",
+                         help="Forget this computer's saved sign-in for the online FocusGuard")
     return parser.parse_args(argv)
 
 
@@ -952,15 +1230,271 @@ def _acquire_single_instance_lock() -> Optional[socket.socket]:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
     try:
         sock.bind(("127.0.0.1", SINGLE_INSTANCE_PORT))
-        sock.listen(1)
+        sock.listen(4)
     except OSError:
         sock.close()
         return None
     return sock
 
 
+def _serve_stop_requests(sock: socket.socket, stop_event: threading.Event) -> None:
+    """The single-instance socket doubles as a stop button: `--stop` from
+    another process connects and says "stop", and the tracker shuts down
+    cleanly (saving its last session) instead of being killed."""
+    while not stop_event.is_set():
+        try:
+            conn, _ = sock.accept()
+        except OSError:
+            return  # socket closed on exit
+        with conn:
+            try:
+                conn.settimeout(2)
+                if conn.recv(16).strip() == b"stop":
+                    stop_event.set()
+                    conn.sendall(b"ok")
+            except OSError:
+                pass
+
+
+def _request_stop() -> Optional[bool]:
+    """Asks a running tracker to stop. True if it agreed, False if one is
+    running but didn't answer (an older version), None if none is running."""
+    free = _acquire_single_instance_lock()
+    if free is not None:
+        # Checked first: Windows takes seconds to refuse a connection to
+        # a closed local port, which would look like a tracker not answering.
+        free.close()
+        return None
+    try:
+        with socket.create_connection(("127.0.0.1", SINGLE_INSTANCE_PORT), timeout=3) as conn:
+            conn.sendall(b"stop")
+            return conn.recv(16).strip() == b"ok"
+    except ConnectionRefusedError:
+        return None
+    except OSError:
+        return False
+
+
+def _wait_for_lock(seconds: float = 8.0) -> Optional[socket.socket]:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        lock = _acquire_single_instance_lock()
+        if lock is not None:
+            return lock
+        time.sleep(0.3)
+    return None
+
+
+# -- Background mode & starting with Windows ---------------------------------
+
+def _frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def stdin_is_console() -> bool:
+    """Someone at a keyboard can answer questions. isatty() alone isn't
+    enough on Windows: it's also true when input comes from NUL (as for
+    a tracker the backend starts), where every question would get an
+    instant empty answer."""
+    try:
+        if sys.stdin is None or not sys.stdin.isatty():
+            return False
+        if os.name != "nt":
+            return True
+        import ctypes
+        import msvcrt
+        mode = ctypes.c_uint()
+        return bool(ctypes.windll.kernel32.GetConsoleMode(msvcrt.get_osfhandle(sys.stdin.fileno()),
+                                                          ctypes.byref(mode)))
+    except Exception:
+        return False
+
+
+def _load_prefs() -> dict:
+    try:
+        return json.loads(PREFS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_prefs(prefs: dict) -> None:
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        PREFS_FILE.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _go_background() -> None:
+    """Hides this tracker's console window and sends its output to a log
+    file, so it can run all day without a window to close by accident."""
+    if os.name == "nt":
+        try:
+            import ctypes
+            hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+            if hwnd:
+                ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        except Exception:
+            pass
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        if BACKGROUND_LOG.exists() and BACKGROUND_LOG.stat().st_size > 2_000_000:
+            BACKGROUND_LOG.unlink()  # keep the log from growing forever
+        log = open(BACKGROUND_LOG, "a", encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = log
+        print(f"\n--- FocusGuard tracker started {datetime.now():%Y-%m-%d %H:%M} ---")
+    except OSError:
+        if sys.stdout is None:  # pythonw has no console to print to
+            sys.stdout = sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
+
+def _installed_exe() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    return base / "Programs" / "FocusGuard" / "FocusGuard-Tracker.exe"
+
+
+def _background_command() -> list[str]:
+    """How to start this tracker in the background. The downloaded .exe
+    is first copied to a fixed place, so moving or deleting the download
+    doesn't break starting with Windows."""
+    if _frozen():
+        target = _installed_exe()
+        if Path(sys.executable).resolve() != target.resolve():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy2(sys.executable, target)
+        return [str(target), "--background"]
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    return [str(pythonw if pythonw.is_file() else Path(sys.executable)), str(Path(__file__).resolve()), "--background"]
+
+
+def startup_enabled() -> bool:
+    if os.name != "nt":
+        return False
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run") as key:
+            winreg.QueryValueEx(key, STARTUP_VALUE_NAME)
+        return True
+    except OSError:
+        return False
+
+
+def install_startup() -> list[str]:
+    import winreg
+    command = _background_command()
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run",
+                        0, winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key, STARTUP_VALUE_NAME, 0, winreg.REG_SZ, subprocess.list2cmdline(command))
+    return command
+
+
+def remove_startup() -> bool:
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run",
+                            0, winreg.KEY_SET_VALUE) as key:
+            winreg.DeleteValue(key, STARTUP_VALUE_NAME)
+        return True
+    except OSError:
+        return False
+
+
+def _start_in_background(command: list[str]) -> None:
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+    subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, creationflags=flags, close_fds=True)
+
+
+def _ask_yes_no(question: str, default: bool) -> bool:
+    try:
+        answer = input(f"{question} [{'Y/n' if default else 'y/N'}] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False  # nobody answered: change nothing
+    return default if not answer else answer.startswith("y")
+
+
+def _pause_before_closing() -> None:
+    """A double-clicked .exe's window closes the moment it exits - give
+    people time to read what it said."""
+    if _frozen() and stdin_is_console():
+        try:
+            input("\nPress Enter to close this window.")
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+
+def _offer_background_startup(backend: BackendClient) -> Optional[list[str]]:
+    """First run of the downloaded tracker, once signed in: offer to keep
+    tracking from now on without this window. Returns the command that
+    starts the background copy if accepted (this one should then hand
+    over and exit), else None."""
+    if os.name != "nt" or not _frozen() or not backend.has_sign_in or startup_enabled():
+        return None
+    prefs = _load_prefs()
+    if prefs.get("startup_asked"):
+        return None
+    print("\nFocusGuard can run quietly in the background and start with Windows, so your apps "
+          "(Word, File Explorer, VS Code...) are always tracked - no window to keep open.")
+    yes = _ask_yes_no("Start FocusGuard automatically with Windows?", default=True)
+    prefs["startup_asked"] = True
+    _save_prefs(prefs)
+    if not yes:
+        print("OK - tracking only while this window stays open. "
+              "(Run with --install-startup to change your mind.)\n")
+        return None
+    try:
+        command = install_startup()
+    except OSError as exc:
+        print(f"[warn] Couldn't set that up ({exc}) - tracking in this window instead.\n")
+        return None
+    print("Done - FocusGuard will start with Windows from now on.")
+    return command
+
+
 def main(argv=None) -> None:
     args = parse_args(argv)
+
+    if args.stop:
+        result = _request_stop()
+        if result is None:
+            print("No FocusGuard tracker is running.")
+        elif result:
+            print("Stopped the FocusGuard tracker.")
+        else:
+            print("A FocusGuard tracker is running but didn't respond - end 'FocusGuard-Tracker' "
+                  "(or python) in Task Manager.")
+        return
+
+    if args.remove_startup or args.install_startup:
+        if os.name != "nt":
+            print("[error] Starting with the system is only set up automatically on Windows.", file=sys.stderr)
+            sys.exit(1)
+        if args.remove_startup:
+            print("FocusGuard will no longer start with Windows." if remove_startup()
+                  else "FocusGuard wasn't set to start with Windows.")
+            return
+        print(f"FocusGuard will start in the background with Windows: {subprocess.list2cmdline(install_startup())}")
+        return
+
+    if args.sign_out:
+        forget_saved_session(DEFAULT_BACKEND_URL if not os.environ.get("TRACKER_BACKEND_URL")
+                             else os.environ["TRACKER_BACKEND_URL"])
+        print("Signed out - the tracker will ask you to sign in next time.")
+        return
+
+    if args.background:
+        _go_background()
+        args.no_ui = True
+    if args.background or _frozen():
+        # Started by Windows or from a download folder: keep the local
+        # logs in one known place rather than wherever it was launched.
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        if not Path(args.out).is_absolute():
+            args.out = str(STATE_DIR / args.out)
+        if not Path(args.switch_out).is_absolute():
+            args.switch_out = str(STATE_DIR / args.switch_out)
 
     if not RICH_AVAILABLE and not args.no_ui:
         print("[info] 'rich' is not installed (pip install rich) - falling back to plain text output.", file=sys.stderr)
@@ -1014,16 +1548,44 @@ def main(argv=None) -> None:
         print()
         return
 
+    interactive = not args.background and stdin_is_console()
     instance_lock = _acquire_single_instance_lock()
     if instance_lock is None:
-        print("[info] A FocusGuard system tracker is already running - nothing to do.", file=sys.stderr)
-        return
+        if not (_frozen() and interactive):
+            print("[info] A FocusGuard system tracker is already running - nothing to do.", file=sys.stderr)
+            return
+        print("FocusGuard is already running in the background and tracking your apps.")
+        if not _ask_yes_no("Restart it with this copy (e.g. after downloading an update)?", default=False):
+            _pause_before_closing()
+            return
+        stopped = _request_stop()
+        instance_lock = _wait_for_lock() if stopped is not False else None
+        if instance_lock is None:
+            print("Couldn't stop the running tracker - end 'FocusGuard-Tracker' in Task Manager, then try again.")
+            _pause_before_closing()
+            return
 
     # One shared BackendClient for both the categorizer (crowdsourced
     # classification) and the tracker (session/switch/live-status sync) -
     # a single login, and app_name -> category lookups land in the same
     # backend the browser extension already reads/writes.
-    backend = BackendClient()
+    backend = BackendClient(prompt_if_missing=interactive)
+    if args.background and backend.online and not backend.has_sign_in:
+        # Nobody can type a password into a hidden window.
+        DesktopNotifier().notify(title="FocusGuard isn't signed in",
+                                 message="Open FocusGuard Tracker and sign in to track your apps.")
+        print("[info] Not signed in - exiting. Open the tracker normally once to sign in.", file=sys.stderr)
+        return
+    background_command = _offer_background_startup(backend) if interactive else None
+    if background_command:
+        instance_lock.close()  # hand the single-instance lock to the background copy
+        _start_in_background(background_command)
+        print("FocusGuard is now tracking in the background - you can close this window.\n"
+              "To stop it: FocusGuard-Tracker.exe --stop   (--remove-startup: don't start with Windows)")
+        _pause_before_closing()
+        return
+    stop_event = threading.Event()
+    threading.Thread(target=_serve_stop_requests, args=(instance_lock, stop_event), daemon=True).start()
     llm = None if args.no_llm else LLMClassifier()
     categorizer = AppCategorizer(Path(args.config), llm_classifier=llm, backend=backend)
 
@@ -1052,6 +1614,9 @@ def main(argv=None) -> None:
         backend=backend,
         focus_minutes=args.focus,
         break_reminder_minutes=break_reminder_minutes,
+        idle_minutes=args.idle_minutes,
+        interactive=interactive,
+        stop_event=stop_event,
     )
     tracker.run()
 

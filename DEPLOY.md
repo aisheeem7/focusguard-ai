@@ -63,7 +63,7 @@ Share these two links:
 
 1. **Open the app link and sign up.** Optional: click the install icon in the address bar to get it as a desktop app.
 2. **Browser tracking:** download `FocusGuard-extension.zip`, unzip it, then in `chrome://extensions` turn on **Developer mode** and choose **Load unpacked** on the unzipped folder. Open the extension and sign in under **Account**.
-3. **Desktop tracking (Windows):** download and run `FocusGuard-Tracker.exe`, then sign in once in its window. It remembers the sign-in after that. Windows may warn about an unrecognised app because the file isn't code-signed; click **More info → Run anyway**.
+3. **Desktop tracking (Windows):** download and run `FocusGuard-Tracker.exe`, then sign in once in its window and say yes to **Start FocusGuard automatically with Windows**. It then runs in the background from every Windows sign-in, and the dashboard's Overview shows it as connected. Windows may warn about an unrecognised app because the file isn't code-signed; click **More info → Run anyway**.
 
 Optional: publishing the extension on the Chrome Web Store ($5 one-time developer fee, plus a review) lets people install it in one click instead of step 2.
 

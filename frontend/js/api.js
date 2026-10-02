@@ -156,6 +156,11 @@ const Api = {
   async unlinkDevice() {
     return apiRequest('/device-link', { method: 'DELETE' });
   },
+  // Whether this account's desktop tracker (Word, File Explorer...) is
+  // running right now, and which browsers the extension covers.
+  async getTrackerStatus() {
+    return apiRequest('/tracker/status');
+  },
   async getLiveStatus(userId) {
     try {
       return await apiRequest(`/live-status/${userId}`);

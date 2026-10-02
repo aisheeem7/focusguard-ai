@@ -40,9 +40,14 @@ The website shows your data. To **collect** it automatically, add one or both tr
 4. Click the FocusGuard icon in your toolbar and sign in under **Account** with your FocusGuard username and password.
 
 ### Desktop tracker: tracks your apps (Windows)
+A website can't see apps like Word, File Explorer or VS Code, so they're tracked by this small program. The dashboard's Overview page shows whether it's connected.
+
 1. Download **`FocusGuard-Tracker.exe`** and double-click it.
 2. If Windows shows *"Windows protected your PC"*, click **More info → Run anyway**. This appears because the app isn't code-signed, not because anything is wrong.
 3. Sign in once in the window that opens. It remembers you next time.
+4. When asked **"Start FocusGuard automatically with Windows?"**, press Enter (yes). It then runs quietly in the background every time you turn on your computer, and you can close the window.
+
+Apps are recognised by program, so Word counts as one app whichever document is open. Time stops counting after 5 minutes without keyboard or mouse input, except while watching a video. To stop the tracker, run `FocusGuard-Tracker.exe --stop`. To stop it starting with Windows, run `FocusGuard-Tracker.exe --remove-startup`.
 
 Use the **same account** everywhere, and your tabs and apps appear together on one dashboard.
 

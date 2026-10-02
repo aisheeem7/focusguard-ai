@@ -780,12 +780,35 @@ def test_device_link_token_is_never_readable_by_web_pages(client):
 
 def test_tracker_status_reports_browsers_the_extension_covers(client):
     user = register(client)
-    assert client.get("/tracker/status", headers=auth_headers(user)).json() == {"extension_browsers": []}
+    assert client.get("/tracker/status", headers=auth_headers(user)).json()["extension_browsers"] == []
     client.post("/extension/ping", json={"client": "chrome"}, headers=auth_headers(user))
     client.put("/live-status", json={"source": "extension", "name": "github.com",
                                      "category": "productive", "client": "msedge"}, headers=auth_headers(user))
     r = client.get("/tracker/status", headers=auth_headers(user))
-    assert r.json() == {"extension_browsers": ["chrome", "msedge"]}
+    assert r.json()["extension_browsers"] == ["chrome", "msedge"]
+
+
+def test_tracker_status_reports_whether_the_desktop_tracker_is_running(client, monkeypatch):
+    monkeypatch.setattr(main_module, "_system_tracker_seen", {})
+    user, other = register(client), register(client, "bob")
+    status = client.get("/tracker/status", headers=auth_headers(user)).json()
+    assert status["system_tracker_online"] is False
+    assert status["local_mode"] is True
+
+    # The desktop tracker's own poll marks it as running - a dashboard
+    # asking the same question doesn't.
+    client.get("/tracker/status", headers={**auth_headers(user), "X-FocusGuard-Client": "tracker"})
+    assert client.get("/tracker/status", headers=auth_headers(user)).json()["system_tracker_online"] is True
+    assert client.get("/tracker/status", headers=auth_headers(other)).json()["system_tracker_online"] is False
+
+    # Gone quiet for over a minute: no longer counted as running.
+    main_module._system_tracker_seen[user["user_id"]] -= timedelta(minutes=2)
+    assert client.get("/tracker/status", headers=auth_headers(user)).json()["system_tracker_online"] is False
+
+    # A desktop app reported live also counts.
+    client.put("/live-status", json={"source": "system", "name": "Microsoft Word", "category": "productive"},
+               headers=auth_headers(user))
+    assert client.get("/tracker/status", headers=auth_headers(user)).json()["system_tracker_online"] is True
 
 
 # ---- Static site lists: classify well-known sites with no LLM at all ----
