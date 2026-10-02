@@ -876,3 +876,19 @@ def test_cloud_mode_disables_single_machine_device_link(client, monkeypatch):
     db = SessionLocal()
     assert db.query(main_module.DeviceLink).count() == 0
     db.close()
+
+
+def test_day_buckets_are_utc_days_on_any_database(client):
+    """A session logged at 23:30 UTC belongs to that UTC day - even on a
+    Postgres server whose own timezone is ahead (where it's already the
+    next day locally). Run with PGTZ set to a non-UTC zone to check."""
+    user = register(client)
+    late = datetime.utcnow().replace(hour=23, minute=30, second=0, microsecond=0) - timedelta(days=2)
+    db = SessionLocal()
+    db.add(main_module.SessionRecord(user_id=user["user_id"], source="system", name="VS Code",
+                                     category="productive", start_time="23:30", end_time="23:59",
+                                     duration=1200, created_at=late))
+    db.commit()
+    db.close()
+    days = client.get(f"/history/{user['user_id']}?days=7", headers=auth_headers(user)).json()["daily_totals"]
+    assert [d["date"] for d in days] == [late.date().isoformat()]

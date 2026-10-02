@@ -389,7 +389,11 @@ BADGE_THRESHOLDS = [
 def _day(column):
     """The calendar day (UTC) of a timestamp as 'YYYY-MM-DD' text. SQLite's
     date() already returns text; Postgres returns a date object, so the
-    cast keeps every day key a plain string on both databases."""
+    cast keeps every day key a plain string on both databases. On Postgres
+    the timestamp is shifted to GMT first, so days are UTC days whatever
+    timezone the database session uses ("GMT" is valid on every build)."""
+    if engine.dialect.name == "postgresql":
+        column = func.timezone("GMT", column)
     return cast(func.date(column), String)
 
 
