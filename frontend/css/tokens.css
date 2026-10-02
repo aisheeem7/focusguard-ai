@@ -1,0 +1,199 @@
+/* ============================================================
+   FocusGuard AI - Shared Design System
+   Single source of truth for color, type, spacing, and shared
+   components. The website AND the extension popup both import
+   this file so they share one visual identity, not two similar
+   ones. See README for the reasoning behind these choices.
+   ============================================================ */
+
+:root {
+  /* --- Color: pastel lavender primary, per brief --- */
+  --lavender-bg: #F1ECFB;       /* primary background */
+  --lavender-bg-deep: #E4DAF7;  /* secondary background / section wash */
+  --lavender-mid: #C9B8ED;      /* mid-tone accent */
+  --lavender-deep: #9A80D9;     /* primary CTA / strong accent */
+  --lavender-ink: #4A3F73;      /* deep lavender for headings on light glass */
+
+  --blush: #FBE1EA;             /* secondary pastel accent - alerts/distraction */
+  --blush-deep: #E3A6BC;
+  --mint: #DCF3EA;              /* tertiary pastel - streaks/success */
+  --mint-deep: #7FC7AA;
+  --marigold: #FBDFC0;          /* warm accent - achievements */
+  --marigold-deep: #E0A85C;
+
+  --cream: #FFFDFB;             /* glass-card base, near white but warm */
+  --ink: #3A3350;               /* body text - warm deep plum, not pure black */
+  --ink-soft: #756B93;          /* secondary text */
+  --ink-faint: #A79BC4;
+
+  /* Semantic aliases */
+  --bg: var(--lavender-bg);
+  --surface: var(--cream);
+  --text: var(--ink);
+  --text-soft: var(--ink-soft);
+  --accent-primary: var(--lavender-deep);
+  --accent-alert: var(--blush-deep);
+  --accent-achieve: var(--marigold-deep);
+  --accent-success: var(--mint-deep);
+
+  /* --- Type --- */
+  /* Body/UI: Poppins. Brand wordmark: Instrument Serif, matching the
+     cinematic landing page's editorial display type - kept identical
+     across every surface (site, dashboard, extension) per the brand
+     consistency requirement, so the wordmark is never rendered in two
+     different fonts. */
+  --font-body: 'Poppins', system-ui, sans-serif;
+  --font-brand: 'Instrument Serif', serif;
+
+  --step--1: 0.875rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.6rem;
+  --step-3: 2.2rem;
+  --step-4: 3.4rem;
+  --step-5: 4.4rem;
+
+  /* --- Space & shape --- */
+  --space-1: 0.5rem;
+  --space-2: 0.875rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+  --space-5: 4rem;
+
+  --radius-card: 26px;
+  --radius-pill: 999px;
+  --radius-small: 14px;
+
+  --shadow-soft: 0 8px 28px -10px rgba(122, 98, 189, 0.22);
+  --shadow-strong: 0 16px 40px -12px rgba(122, 98, 189, 0.30);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.brand-mark {
+  font-family: var(--font-brand);
+  font-weight: 400;
+}
+.brand-wordmark {
+  font-family: var(--font-brand);
+  font-size: var(--step-3);
+  color: var(--lavender-ink);
+  line-height: 1;
+}
+.brand-wordmark-sm { font-size: var(--step-2); }
+p { margin: 0 0 var(--space-2) 0; max-width: 62ch; }
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--lavender-deep);
+  outline-offset: 2px;
+}
+
+/* --- Buttons: soft, rounded, glassy, clear hierarchy --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.85em 1.7em;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--step-0);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--lavender-deep), #B198E6);
+  color: #FFFDFB;
+  box-shadow: var(--shadow-soft);
+}
+.btn-primary:hover { box-shadow: var(--shadow-strong); }
+
+.btn-secondary {
+  background: rgba(255,255,255,0.6);
+  color: var(--lavender-ink);
+  border: var(--glass-border);
+  backdrop-filter: blur(6px);
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.85); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-soft);
+  padding: 0.85em 1.1em;
+}
+.btn-ghost:hover { color: var(--text); }
+
+/* --- Glass card: the core surface component --- */
+.card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-card);
+  border: var(--glass-border);
+  box-shadow: var(--shadow-soft);
+  padding: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-bottom: var(--space-2);
+}
+.field label {
+  font-size: var(--step--1);
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.field input {
+  border: var(--glass-border);
+  background: rgba(255,255,255,0.7);
+  border-radius: var(--radius-small);
+  padding: 0.85em 1em;
+  color: var(--text);
+}
+.field input:focus { background: var(--surface); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border-radius: var(--radius-pill);
+  padding: 0.35em 0.9em;
+  font-size: var(--step--1);
+  font-weight: 600;
+}
+.pill-achieve { background: rgba(224, 168, 92, 0.2); color: var(--marigold-deep); }
+.pill-focus { background: rgba(154, 128, 217, 0.18); color: var(--lavender-deep); }
+.pill-alert { background: rgba(227, 166, 188, 0.28); color: var(--accent-alert); }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap;
+}

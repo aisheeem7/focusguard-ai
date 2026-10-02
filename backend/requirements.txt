@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+bcrypt
+pydantic
+python-dotenv # loads .env into the environment on startup
+python-multipart # needed for the avatar upload endpoint (UploadFile form parsing)
+httpx        # needed for TestClient in tests/
+pytest       # to run tests/
+# anthropic    # optional: enables Feature 5's AI-written weekly insights (primary); set ANTHROPIC_API_KEY too
+# google-genai and openai are NOT optional in practice if you don't have
+# an ANTHROPIC_API_KEY set (this repo's .env doesn't ship one) - without
+# them installed, Feature 5 has zero working providers even when
+# GEMINI_API_KEY/CHEAPER_INFERENCE_API_KEY are both valid, since the
+# fallback chain can never even attempt them.
+google-genai # Feature 5 fallback if Anthropic is unavailable/out of credits; set GEMINI_API_KEY too (free tier: aistudio.google.com)
+openai       # Feature 5 third fallback via the CheaperInference proxy; set CHEAPER_INFERENCE_API_KEY too

@@ -1,0 +1,58 @@
+body.auth-body {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Full-bleed blurred "scenery" background - soft color blobs standing
+   in for a photographic scene, heavily blurred, no text or literal
+   shapes on it per the brief. */
+.auth-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(160deg, var(--lavender-bg) 0%, var(--lavender-bg-deep) 100%);
+  overflow: hidden;
+}
+.bg-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.75;
+}
+.bg-blob-1 { width: 420px; height: 420px; background: var(--lavender-mid); top: -10%; left: -8%; }
+.bg-blob-2 { width: 380px; height: 380px; background: var(--blush); top: 55%; left: -5%; }
+.bg-blob-3 { width: 460px; height: 460px; background: var(--mint); top: -12%; right: -10%; }
+.bg-blob-4 { width: 340px; height: 340px; background: var(--marigold); bottom: -12%; right: 5%; }
+
+.auth-center {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-brand { margin-bottom: var(--space-3); text-align: center; }
+
+.auth-tabs { display: flex; gap: var(--space-1); margin-bottom: var(--space-3); }
+.auth-tab {
+  flex: 1; text-align: center; padding: 0.7em; border-radius: var(--radius-pill);
+  font-weight: 600; cursor: pointer;
+  border: var(--glass-border); background: rgba(255,255,255,0.6); color: var(--text-soft);
+}
+.auth-tab.active { background: var(--lavender-ink); color: var(--cream); border-color: var(--lavender-ink); }
+
+.auth-msg { padding: 0.8em 1em; border-radius: var(--radius-small); font-size: var(--step--1); margin-bottom: var(--space-2); display: none; }
+.auth-msg.error { background: rgba(227,166,188,.35); color: #7A3548; display: block; }
+.auth-msg.success { background: rgba(127,199,170,.3); color: #2A5641; display: block; }
+
+.auth-hint { font-size: var(--step--1); color: var(--text-soft); margin-top: var(--space-2); text-align: center; }
+.auth-hint code { background: var(--surface-alt, rgba(154,128,217,0.12)); padding: 0.15em 0.4em; border-radius: 6px; }

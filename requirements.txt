@@ -1,0 +1,18 @@
+# Install only the block that matches your OS, plus the shared ones below.
+
+# --- Shared (all platforms) ---
+rich
+# anthropic   # optional: enables Claude Haiku auto-classification of unrecognized apps
+
+# --- Windows ---
+# pywin32
+# psutil
+
+# --- macOS ---
+# pyobjc-framework-Cocoa
+# psutil
+
+# --- Linux (X11 only) ---
+# psutil
+# (also run: sudo apt-get install xdotool wmctrl)
+requests   # for backend_client.py to talk to the backend API

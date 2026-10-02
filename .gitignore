@@ -1,0 +1,25 @@
+venv/
+__pycache__/
+*.pyc
+learned_categories.json
+backend/app.db
+/app.db
+frontend-react/app.db
+files.zip
+.env
+backend/uploads/
+
+backend/test_app.db
+
+# Claude Code's own local session/plan state - not part of the project
+.claude/
+
+# TypeScript incremental build cache - machine/build-specific, not source
+frontend-react/*.tsbuildinfo
+
+# Background system tracker output (started by the backend)
+tracker.log
+
+# Personal tracked activity (written by window_tracker.py at runtime)
+activity_log.jsonl
+switch_log.jsonl

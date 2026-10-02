@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>focusguard ai - Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+<script>
+  // Applies the saved theme and sidebar state before first paint, so
+  // there's no flash of the wrong look while app.js loads.
+  try {
+    if (localStorage.getItem('fg_theme') === 'light') document.documentElement.dataset.theme = 'light';
+    if (localStorage.getItem('fg_sidebar') === 'collapsed') document.documentElement.dataset.sidebar = 'collapsed';
+  } catch (e) { /* storage blocked - defaults */ }
+</script>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/dashboard.css">
+<!-- PWA installability (Milestone 2): this page isn't part of the React
+     app's Vite build, so it can't use vite-plugin-pwa's auto-injected
+     registration script - the manifest link, theme-color, and a small
+     vanilla registration snippet below cover it manually. Both this
+     page and the React shell (index.html) register the SAME
+     /manifest.webmanifest and /sw.js (one origin, one installable app,
+     one service worker scope covering both). -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#9A80D9">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/focusguard-icon-192.png">
+</head>
+<body class="app-body">
+
+<!-- Same ambient loop the landing/auth pages use (VideoBackground.tsx),
+     so the dashboard reads as the same cinematic product instead of a
+     plain admin panel behind it - kept very subdued (heavy dark
+     overlay in dashboard.css) so it's felt, not seen, and never
+     competes with the actual stats/cards. Skipped entirely for
+     prefers-reduced-motion users. -->
+<video class="app-bg-video" autoplay loop muted playsinline aria-hidden="true">
+  <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4" type="video/mp4">
+</video>
+<div class="app-bg-overlay" aria-hidden="true"></div>
+
+<aside class="grove-sidebar">
+  <div class="sidebar-head">
+    <div class="sidebar-brand brand-wordmark">focusguard ai</div>
+    <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Collapse sidebar" title="Collapse sidebar"></button>
+  </div>
+
+  <ul class="path-nav">
+    <li class="path-item active" data-view="overview"><span class="stone" id="stone-overview"></span> <span data-i18n="dashboard.nav.overview">Overview</span></li>
+    <li class="path-item" data-view="focus"><span class="stone" id="stone-focus"></span> <span data-i18n="dashboard.nav.focus_mode">Focus Mode</span></li>
+    <li class="path-item" data-view="streak"><span class="stone" id="stone-streak"></span> <span data-i18n="dashboard.nav.streaks">Streaks</span></li>
+    <li class="path-item" data-view="badges"><span class="stone" id="stone-badges"></span> <span data-i18n="dashboard.nav.badges">Badges</span></li>
+    <li class="path-item" data-view="board"><span class="stone" id="stone-board"></span> <span data-i18n="dashboard.nav.leaderboard">Leaderboard</span></li>
+    <li class="path-item" data-view="insight"><span class="stone" id="stone-insight"></span> <span data-i18n="dashboard.nav.insights">Insights</span></li>
+    <li class="path-item" data-view="history"><span class="stone" id="stone-history"></span> <span data-i18n="dashboard.nav.history">History</span></li>
+  </ul>
+
+  <div class="sidebar-footer">
+    <button class="btn btn-ghost" id="logout-btn" style="width:100%;" data-i18n-attr="title:dashboard.nav.sign_out" title="Sign out"><span class="logout-icon" id="logout-icon" aria-hidden="true"></span><span class="logout-label" data-i18n="dashboard.nav.sign_out">Sign out</span></button>
+  </div>
+</aside>
+
+<main class="grove-main">
+
+  <div class="app-topbar">
+    <label class="topbar-lang">
+      <span id="lang-icon" aria-hidden="true"></span>
+      <select id="language-select" class="lang-select" data-i18n-attr="aria-label:language_picker.label" aria-label="Language"></select>
+    </label>
+    <span class="topbar-divider" aria-hidden="true"></span>
+    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light mode" title="Switch to light mode"></button>
+    <span class="topbar-divider" aria-hidden="true"></span>
+    <a class="user-chip" id="user-chip-link" href="/profile" data-i18n-attr="title:dashboard.nav.edit_profile" title="Edit profile">
+      <div class="user-avatar" id="chip-icon"></div>
+      <span class="name" id="chip-username">-</span>
+    </a>
+  </div>
+
+  <!-- OVERVIEW -->
+  <section class="view active" id="view-overview">
+    <div class="scene-banner">
+      <div>
+        <h2 id="overview-greeting">Welcome back</h2>
+        <p data-i18n="dashboard.overview.subtitle">Here's how your last 7 days have looked. This dashboard reads real data from your tracker's backend.</p>
+      </div>
+    </div>
+
+    <div class="view-body">
+      <div class="stat-row" id="overview-stats">
+        <div class="loading-row" data-i18n="dashboard.overview.fetching_stats">Fetching your stats&hellip;</div>
+      </div>
+
+      <div class="card activity-card">
+        <div class="activity-head">
+          <h3 data-i18n="dashboard.overview.activity_heading">Activity</h3>
+          <span class="activity-summary" id="activity-summary"></span>
+        </div>
+        <div id="activity-grid"><div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="margin-bottom:0.6em;" data-i18n="dashboard.overview.current_streak_heading">Current streak</h3>
+          <div id="overview-streak-mini" class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.6em;" data-i18n="dashboard.overview.leaderboard_heading">This week's leaderboard</h3>
+          <div id="overview-board-mini" class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOCUS MODE -->
+  <section class="view" id="view-focus">
+    <div class="scene-banner">
+      <div>
+        <h2 data-i18n="dashboard.focus.heading">Focus Mode</h2>
+        <p data-i18n="dashboard.focus.subtitle">Commit to a block of time. Switch to anything distracting and the session breaks - no quiet way out.</p>
+      </div>
+    </div>
+
+    <div class="card" id="current-tab-card" style="margin-bottom:var(--space-3);">
+      <h4 style="margin:0 0 0.6em; font-size:var(--step--1); color:var(--text-soft);" data-i18n="dashboard.focus.right_now">Right now</h4>
+      <div class="loading-row" data-i18n="dashboard.focus.checking_tab">Checking your current tab/app&hellip;</div>
+    </div>
+
+    <div class="card" id="focus-card">
+      <div class="loading-row" data-i18n="dashboard.focus.checking_session">Checking for an active session&hellip;</div>
+    </div>
+  </section>
+
+  <!-- STREAKS -->
+  <section class="view" id="view-streak">
+    <div class="scene-banner">
+      <div>
+        <h2 data-i18n="dashboard.streak.heading">Your streak</h2>
+        <p data-i18n="dashboard.streak.subtitle">A day counts if your distracting switches stayed under your threshold. Consecutive days build your streak.</p>
+      </div>
+    </div>
+
+    <div class="view-body">
+      <div class="stat-row" id="streak-stats">
+        <div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+      </div>
+      <div id="streak-badges" class="streak-badges"></div>
+
+      <div class="card">
+        <h3 style="margin-bottom:0.8em;" data-i18n="dashboard.streak.recent_days">Recent days</h3>
+        <div id="streak-days"><div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BADGES -->
+  <section class="view" id="view-badges">
+    <div class="scene-banner">
+      <div>
+        <h2 data-i18n="dashboard.badges.heading">Badges</h2>
+        <p data-i18n="dashboard.badges.subtitle">Every badge marks a focus habit you've built. Keep going to unlock them all.</p>
+      </div>
+    </div>
+
+    <div class="view-body">
+      <div class="badges-summary" id="badges-summary"></div>
+      <div class="badge-grid" id="badge-grid">
+        <div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEADERBOARD -->
+  <section class="view" id="view-board">
+    <div class="scene-banner">
+      <div>
+        <h2 data-i18n="dashboard.nav.leaderboard">Leaderboard</h2>
+        <p data-i18n="dashboard.board.subtitle">Ranked by focus score: productive time divided by (productive + distracting) time, over the last 7 days.</p>
+      </div>
+    </div>
+
+    <div class="view-body">
+      <div class="card" id="board-card">
+        <div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSIGHTS -->
+  <section class="view" id="view-insight">
+    <div class="scene-banner">
+      <div>
+        <h2 data-i18n="dashboard.insight.heading">Weekly insight</h2>
+        <p data-i18n="dashboard.insight.subtitle">A short AI-written summary of your last 7 days, plus the raw numbers behind it.</p>
+      </div>
+    </div>
+
+    <div class="view-body">
+      <div class="stat-row" id="insight-stats">
+        <div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.8em;">
+          <h3 data-i18n="dashboard.insight.what_noticed">What FocusGuard noticed</h3>
+          <button class="btn btn-secondary" id="refresh-insight-btn" style="padding:0.5em 1em; font-size:0.85rem; display:inline-flex; align-items:center; gap:0.4em;">
+            <span id="refresh-icon" style="display:inline-flex;"></span> <span data-i18n="dashboard.insight.refresh">Refresh</span>
+          </button>
+        </div>
+        <div class="insight-text" id="insight-text" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section class="view" id="view-history">
+    <div class="scene-banner">
+      <div>
+        <h2 data-i18n="dashboard.history.heading">History</h2>
+        <p data-i18n="dashboard.history.subtitle">Every tracked app and tab, browser and system alike, broken down by day and by where your time actually went.</p>
+      </div>
+    </div>
+
+    <div class="view-body">
+      <div class="grid-2" style="margin-bottom:var(--space-3);">
+        <div class="card">
+          <h3 style="margin-bottom:0.6em;" data-i18n="dashboard.history.top_distraction_heading">Biggest distraction</h3>
+          <div id="history-top-distraction" class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:0.6em;" data-i18n="dashboard.history.best_day_heading">Most productive day</h3>
+          <div id="history-best-day" class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:var(--space-3);">
+        <h3 style="margin-bottom:0.8em;" data-i18n="dashboard.history.chart_heading">Last 7 days</h3>
+        <div id="history-chart"><div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:0.8em;" data-i18n="dashboard.history.top_apps_heading">Top apps &amp; tabs</h3>
+        <div id="history-top-apps"><div class="loading-row" data-i18n="dashboard.overview.loading">Loading&hellip;</div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="app-footer">୨ৎ made with ♡ by ash ୨ৎ</footer>
+
+</main>
+
+<script src="js/icons.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+<script>
+  // PWA installability: registers the same service worker the React
+  // shell registers (see frontend-react/src/main.tsx) - this page isn't
+  // built by Vite, so it can't import the virtual:pwa-register module
+  // and needs its own plain registration call instead. Best-effort:
+  // never blocks the dashboard if the browser lacks SW support or the
+  // file 404s (e.g. running `npm run dev` instead of a real build).
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>

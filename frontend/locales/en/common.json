@@ -1,0 +1,254 @@
+{
+  "nav": {
+    "home": "Home",
+    "focus_mode": "Focus Mode",
+    "streaks": "Streaks",
+    "leaderboard": "Leaderboard",
+    "insights": "Insights",
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up"
+  },
+  "landing": {
+    "title_before": "Welcome! Are you ready to be",
+    "title_accent": "focused?",
+    "subtitle": "Distractions fade. Your goals don’t.",
+    "cta": "Start Focusing →"
+  },
+  "auth": {
+    "sign_in": "Sign in",
+    "create_account": "Create account",
+    "username": "Username",
+    "password": "Password",
+    "backend_unreachable": "Can't reach the backend - make sure it's running (uvicorn main:app --port 8000).",
+    "signup_note": "Just pick a username and password - no email needed, this connects straight to your own backend.",
+    "backend_label": "Backend:",
+    "back_to_home": "← Back to home"
+  },
+  "profile": {
+    "title": "Your profile",
+    "loading": "Loading…",
+    "change": "Change",
+    "uploading": "Uploading…",
+    "avatar_hint": "PNG, JPEG, WEBP or GIF - up to 5MB",
+    "username": "Username",
+    "save_username": "Save username",
+    "saving": "Saving…",
+    "username_updated": "Username updated.",
+    "avatar_updated": "Profile picture updated.",
+    "back_to_dashboard": "← Back to dashboard",
+    "break_interval_label": "Break reminder interval",
+    "break_interval_hint": "How often FocusGuard reminds you to take a break, in Focus Mode and everywhere else.",
+    "save_break_interval": "Save interval",
+    "break_interval_updated": "Break interval updated."
+  },
+  "language_picker": {
+    "label": "Language"
+  },
+  "dashboard": {
+    "nav": {
+      "overview": "Overview",
+      "focus_mode": "Focus Mode",
+      "streaks": "Streaks",
+      "leaderboard": "Leaderboard",
+      "insights": "Insights",
+      "sign_out": "Sign out",
+      "edit_profile": "Edit profile",
+      "history": "History",
+      "switch_to_light": "Switch to light mode",
+      "switch_to_dark": "Switch to dark mode",
+      "collapse_sidebar": "Collapse sidebar",
+      "expand_sidebar": "Expand sidebar",
+      "badges": "Badges"
+    },
+    "overview": {
+      "welcome_back": "Welcome back, {{username}}",
+      "default_username": "friend",
+      "subtitle": "Here's how your last 7 days have looked. This dashboard reads real data from your tracker's backend.",
+      "current_streak_heading": "Current streak",
+      "leaderboard_heading": "This week's leaderboard",
+      "fetching_stats": "Fetching your stats…",
+      "loading": "Loading…",
+      "productive_7d": "Productive (7d)",
+      "distracted_7d": "Distracted (7d)",
+      "sessions_tracked": "Sessions tracked",
+      "distracting_switches": "Distracting switches",
+      "streak_days_one": "{{count}} day",
+      "streak_days_other": "{{count}} days",
+      "best_ever_one": "Best ever: {{count}} day",
+      "best_ever_other": "Best ever: {{count}} days",
+      "no_group_yet": "No group yet - visit the Leaderboard page to create or join one.",
+      "couldnt_load_stats": "Couldn't load stats: {{message}}",
+      "couldnt_load_streak": "Couldn't load streak.",
+      "couldnt_load_leaderboard": "Couldn't load leaderboard.",
+      "activity_heading": "Activity",
+      "activity_summary": "{{count}} active days in the last 6 months",
+      "activity_less": "Less",
+      "activity_more": "More",
+      "activity_day": "{{date}} · {{minutes}} min productive",
+      "activity_none": "{{date}} · no activity"
+    },
+    "focus": {
+      "heading": "Focus Mode",
+      "subtitle": "Commit to a block of time. Switch to anything distracting and the session breaks - no quiet way out.",
+      "right_now": "Right now",
+      "checking_tab": "Checking your current tab/app…",
+      "checking_session": "Checking for an active session…",
+      "not_tracking": "Not tracking right now - open the extension or start the system tracker to see it here.",
+      "browser_tab": "Browser tab",
+      "system_app": "System app",
+      "couldnt_reach_backend": "Couldn't reach the backend.",
+      "couldnt_reach_backend_msg": "Couldn't reach the backend: {{message}}",
+      "category_productive": "Productive",
+      "category_distracted": "Distracted",
+      "category_neutral": "Neutral",
+      "encourage": "you can do it!",
+      "give_up_early": "Give up early",
+      "distraction_warning": "On a distraction - session breaks in {{seconds}}s if you don't switch back.",
+      "session_complete": "Session complete - nice focus!",
+      "session_broken": "Session broken by a distraction.",
+      "min_tracked_one": "{{count}} min tracked",
+      "min_tracked_other": "{{count}} min tracked",
+      "distraction_time_spent": ", {{seconds}}s spent on a distraction",
+      "start_another": "Start another session",
+      "no_active_session": "No active session. Pick a length and commit.",
+      "minutes_label": "Minutes",
+      "start_focus_mode": "Start Focus Mode",
+      "take_a_break": "Take a break",
+      "on_break": "On a break - come back when you're ready.",
+      "im_back": "I'm back",
+      "break_penalty_msg": "That early break cost you +{{minutes}} min.",
+      "enter_fullscreen": "Full screen",
+      "exit_fullscreen": "Exit full screen"
+    },
+    "streak": {
+      "heading": "Your streak",
+      "subtitle": "A day counts if your distracting switches stayed under your threshold. Consecutive days build your streak.",
+      "recent_days": "Recent days",
+      "current_streak": "Current streak",
+      "best_ever": "Best ever",
+      "no_badges": "No badges yet - a 3-day streak earns your first one.",
+      "focused": "Focused",
+      "missed": "Missed",
+      "day_summary": "{{minutes}}m productive · {{count}} distracting switch",
+      "day_summary_other": "{{minutes}}m productive · {{count}} distracting switches",
+      "no_tracked_days": "No tracked days yet - run the tracker and come back here.",
+      "couldnt_load_streaks": "Couldn't load streaks: {{message}}",
+      "badge_3day": "3-Day Streak",
+      "badge_week": "Week Warrior",
+      "badge_twoweek": "Two-Week Titan",
+      "badge_month": "Month Master"
+    },
+    "board": {
+      "subtitle": "Ranked by focus score: productive time divided by (productive + distracting) time, over the last 7 days.",
+      "couldnt_reach_backend_msg": "Couldn't reach the backend: {{message}}",
+      "no_group": "You haven't joined a grove yet. Start one, or join a friend's with their code.",
+      "new_group_name": "New group name",
+      "create_group": "Create group",
+      "or": "or",
+      "join_code_label": "Join code",
+      "join_group": "Join group",
+      "join_code_pill": "Join code: {{code}}",
+      "couldnt_load_leaderboard": "Couldn't load leaderboard: {{message}}",
+      "leave_group": "Leave group",
+      "leave_group_confirm": "Leave \"{{name}}\"? You can join or create another group right after."
+    },
+    "insight": {
+      "heading": "Weekly insight",
+      "subtitle": "A short AI-written summary of your last 7 days, plus the raw numbers behind it.",
+      "what_noticed": "What FocusGuard noticed",
+      "refresh": "Refresh",
+      "productive": "Productive",
+      "distracted": "Distracted",
+      "total_switches": "Total switches",
+      "sessions": "Sessions",
+      "couldnt_load_insights": "Couldn't load insights: {{message}}",
+      "rereading": "Re-reading your week…"
+    },
+    "history": {
+      "heading": "History",
+      "subtitle": "Every tracked app and tab, browser and system alike, broken down by day and by where your time actually went.",
+      "top_distraction_heading": "Biggest distraction",
+      "best_day_heading": "Most productive day",
+      "chart_heading": "Last 7 days",
+      "top_apps_heading": "Top apps & tabs",
+      "no_data": "Not enough tracked data yet.",
+      "no_distraction_data": "No distractions tracked yet - keep it up!",
+      "time_spent": "{{minutes}} min",
+      "source_combined": "Browser + system",
+      "neutral": "Neutral",
+      "couldnt_load": "Couldn't load history: {{message}}"
+    },
+    "badges": {
+      "heading": "Badges",
+      "subtitle": "Every badge marks a focus habit you've built. Keep going to unlock them all.",
+      "unlocked_count": "{{earned}} of {{total}} unlocked",
+      "earned": "Unlocked",
+      "tier_common": "Common",
+      "tier_rare": "Rare",
+      "tier_epic": "Epic",
+      "couldnt_load": "Couldn't load badges: {{message}}",
+      "items": {
+        "first_spark": {
+          "name": "First Spark",
+          "desc": "Complete your first Focus Mode session."
+        },
+        "ember_keeper": {
+          "name": "Ember Keeper",
+          "desc": "Keep a 3-day focus streak."
+        },
+        "flow_weaver": {
+          "name": "Flow Weaver",
+          "desc": "Keep a 7-day focus streak."
+        },
+        "unbreakable": {
+          "name": "Unbreakable",
+          "desc": "Keep a 30-day focus streak."
+        },
+        "deep_diver": {
+          "name": "Deep Diver",
+          "desc": "Complete a focus session of 50 minutes or more."
+        },
+        "iron_will": {
+          "name": "Iron Will",
+          "desc": "Finish a focus session without touching a distraction."
+        },
+        "pomodoro_pro": {
+          "name": "Pomodoro Pro",
+          "desc": "Complete 10 focus sessions."
+        },
+        "focus_titan": {
+          "name": "Focus Titan",
+          "desc": "Complete 50 focus sessions."
+        },
+        "ten_hour_club": {
+          "name": "Ten-Hour Club",
+          "desc": "Log 10 hours of productive time."
+        },
+        "centurion": {
+          "name": "Centurion",
+          "desc": "Log 100 hours of productive time."
+        },
+        "zen_master": {
+          "name": "Zen Master",
+          "desc": "Spend a day with 1+ hour of productive time and zero distracting switches."
+        },
+        "early_bird": {
+          "name": "Early Bird",
+          "desc": "Start productive work before 7 AM."
+        },
+        "night_owl": {
+          "name": "Night Owl",
+          "desc": "Get productive work done after 10 PM."
+        },
+        "squad_up": {
+          "name": "Squad Up",
+          "desc": "Join or create a study group."
+        },
+        "top_of_pack": {
+          "name": "Top of the Pack",
+          "desc": "Rank #1 in your group this week."
+        }
+      }
+    }
+  }
+}

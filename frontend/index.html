@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>focusguard ai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+
+<nav class="landing-nav">
+  <div class="brand-wordmark">focusguard ai</div>
+
+  <ul class="nav-links">
+    <li><a href="auth.html"><span id="nl-board"></span> Leaderboard</a></li>
+    <li><a href="auth.html"><span id="nl-streak"></span> Streaks</a></li>
+    <li><a href="auth.html"><span id="nl-score"></span> Focus Score</a></li>
+    <li><a href="auth.html"><span id="nl-insight"></span> Insights</a></li>
+  </ul>
+
+  <div class="nav-auth">
+    <a href="auth.html" class="btn btn-ghost">Log In</a>
+    <a href="auth.html?mode=signup" class="btn btn-secondary">Sign Up</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="clock-illustration" aria-hidden="true">
+    <div class="clock-glow"></div>
+    <div class="clock-face-wrap" id="clock-face"></div>
+    <div class="clock-fade"></div>
+  </div>
+
+  <h1>
+    <span class="hero-welcome brand-mark">welcome!</span>
+    <span class="hero-question">Are you ready to be focused?</span>
+  </h1>
+  <p class="sub">let's work a little more today! ;)</p>
+
+  <div class="hero-actions">
+    <a href="auth.html?mode=signup" class="btn btn-primary">Start your streak</a>
+    <a href="auth.html" class="btn btn-ghost">I already have an account</a>
+  </div>
+</header>
+
+<section class="feature-row-wrap">
+  <div class="feature-row" id="feature-row"></div>
+</section>
+
+<div class="feature-overlay" id="feature-overlay"></div>
+<div class="card feature-desc-box" id="feature-desc-box">
+  <h3 id="feature-desc-title"></h3>
+  <p id="feature-desc-text"></p>
+</div>
+
+<footer class="landing-footer">
+  ୨ৎ made with ♡ by ash ୨ৎ
+</footer>
+
+<script src="js/icons.js"></script>
+<script>
+  renderIcon(document.getElementById('nl-board'), 'trophy', 16);
+  renderIcon(document.getElementById('nl-streak'), 'flame', 16);
+  renderIcon(document.getElementById('nl-score'), 'target', 16);
+  renderIcon(document.getElementById('nl-insight'), 'scroll', 16);
+
+  // Feature row: cards auto-cycle a highlight; hovering one pauses the
+  // cycle and shows the blurred overlay + centered description box.
+  (function () {
+    const features = [
+      { icon: 'timer', title: 'Focus Mode', desc: 'Start a timed session and commit to it. One distracting switch breaks it - no excuses, no quiet exits.' },
+      { icon: 'flame', title: 'Streaks & Badges', desc: "Every focused day adds to your streak. Miss a day and it resets - but your best is remembered forever." },
+      { icon: 'trophy', title: 'Leaderboard', desc: "Make a group with friends. See who's actually staying focused this week, not just who says they are." },
+      { icon: 'ai', title: 'Weekly AI Insights', desc: 'A short, personalized recap of your week - written by AI, grounded in your real activity stats.' },
+      { icon: 'clock', title: 'Break Reminders', desc: "Stayed productive a while? We'll nudge you to take a breather before focus turns into burnout." },
+      { icon: 'shield', title: 'Distraction Detection', desc: 'Every app and tab switch is categorized automatically, so distractions get caught the moment they happen.' }
+    ];
+
+    const row = document.getElementById('feature-row');
+    const overlay = document.getElementById('feature-overlay');
+    const descBox = document.getElementById('feature-desc-box');
+    const descTitle = document.getElementById('feature-desc-title');
+    const descText = document.getElementById('feature-desc-text');
+    const cards = [];
+
+    features.forEach((f, i) => {
+      const card = document.createElement('div');
+      card.className = 'feature-card-mini';
+      card.innerHTML = `<div class="icon-wrap" id="fr-icon-${i}"></div><span>${f.title}</span>`;
+      row.appendChild(card);
+      cards.push(card);
+      renderIcon(card.querySelector('.icon-wrap'), f.icon, 20);
+    });
+
+    let activeIndex = 0;
+    let hovering = false;
+    cards[0].classList.add('active');
+
+    function showOverlay(index) {
+      descTitle.textContent = features[index].title;
+      descText.textContent = features[index].desc;
+      overlay.classList.add('visible');
+      descBox.classList.add('visible');
+    }
+    function hideOverlay() {
+      overlay.classList.remove('visible');
+      descBox.classList.remove('visible');
+    }
+
+    cards.forEach((card, i) => {
+      card.addEventListener('mouseenter', () => {
+        hovering = true;
+        cards.forEach((c, j) => {
+          c.classList.remove('active');
+          c.classList.toggle('hovered', j === i);
+        });
+        showOverlay(i);
+      });
+    });
+
+    row.addEventListener('mouseleave', () => {
+      hovering = false;
+      cards.forEach(c => c.classList.remove('hovered'));
+      hideOverlay();
+      cards[activeIndex].classList.add('active');
+    });
+
+    setInterval(() => {
+      if (hovering) return;
+      cards[activeIndex].classList.remove('active');
+      activeIndex = (activeIndex + 1) % features.length;
+      cards[activeIndex].classList.add('active');
+    }, 2400);
+  })();
+
+  // Semi-circular clock illustration: a full clock face SVG, clipped by
+  // its container's height so only the upper portion shows, with a
+  // gradient overlay (.clock-fade) dissolving the rest into the page
+  // background - a soft, dreamy treatment rather than a literal
+  // half-drawn clock.
+  document.getElementById('clock-face').innerHTML = `
+    <svg viewBox="0 0 220 220" width="220" height="220">
+      <circle cx="110" cy="110" r="92" fill="rgba(255,255,255,0.55)" stroke="var(--lavender-mid)" stroke-width="2"/>
+      <circle cx="110" cy="110" r="92" fill="none" stroke="var(--lavender-deep)" stroke-width="1.4" opacity="0.5"/>
+      ${[0,30,60,90,120,150,180,210,240,270,300,330].map(deg => {
+        const rad = (deg - 90) * Math.PI / 180;
+        const inner = 78, outer = 88;
+        const x1 = 110 + inner * Math.cos(rad), y1 = 110 + inner * Math.sin(rad);
+        const x2 = 110 + outer * Math.cos(rad), y2 = 110 + outer * Math.sin(rad);
+        return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(--lavender-deep)" stroke-width="2.4" stroke-linecap="round" opacity="0.55"/>`;
+      }).join('')}
+      <line x1="110" y1="110" x2="110" y2="62" stroke="var(--lavender-ink)" stroke-width="4" stroke-linecap="round"/>
+      <line x1="110" y1="110" x2="145" y2="128" stroke="var(--lavender-ink)" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="110" cy="110" r="6" fill="var(--lavender-ink)"/>
+    </svg>
+  `;
+</script>
+</body>
+</html>

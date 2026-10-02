@@ -1,0 +1,254 @@
+{
+  "nav": {
+    "home": "होम",
+    "focus_mode": "फ़ोकस मोड",
+    "streaks": "स्ट्रीक्स",
+    "leaderboard": "लीडरबोर्ड",
+    "insights": "इनसाइट्स",
+    "sign_in": "साइन इन",
+    "sign_up": "साइन अप"
+  },
+  "landing": {
+    "title_before": "स्वागत है! क्या आप फोकस्ड होने के लिए तैयार हैं",
+    "title_accent": "फोकस्ड?",
+    "subtitle": "ध्यान भटकाने वाली चीज़ें मिट जाती हैं। आपके लक्ष्य नहीं।",
+    "cta": "फोकस करना शुरू करें →"
+  },
+  "auth": {
+    "sign_in": "साइन इन करें",
+    "create_account": "खाता बनाएं",
+    "username": "उपयोगकर्ता नाम",
+    "password": "पासवर्ड",
+    "backend_unreachable": "बैकएंड तक नहीं पहुंच पा रहे - सुनिश्चित करें कि यह चल रहा है (uvicorn main:app --port 8000)।",
+    "signup_note": "बस एक उपयोगकर्ता नाम और पासवर्ड चुनें - ईमेल की ज़रूरत नहीं, यह सीधे आपके अपने बैकएंड से जुड़ता है।",
+    "backend_label": "बैकएंड:",
+    "back_to_home": "← होम पर वापस जाएं"
+  },
+  "profile": {
+    "title": "आपकी प्रोफ़ाइल",
+    "loading": "लोड हो रहा है…",
+    "change": "बदलें",
+    "uploading": "अपलोड हो रहा है…",
+    "avatar_hint": "PNG, JPEG, WEBP या GIF - 5MB तक",
+    "username": "उपयोगकर्ता नाम",
+    "save_username": "उपयोगकर्ता नाम सहेजें",
+    "saving": "सहेजा जा रहा है…",
+    "username_updated": "उपयोगकर्ता नाम अपडेट किया गया।",
+    "avatar_updated": "प्रोफ़ाइल तस्वीर अपडेट की गई।",
+    "back_to_dashboard": "← डैशबोर्ड पर वापस जाएं",
+    "break_interval_label": "ब्रेक रिमाइंडर अंतराल",
+    "break_interval_hint": "FocusGuard आपको Focus Mode में और बाकी जगह कितनी बार ब्रेक लेने की याद दिलाए।",
+    "save_break_interval": "अंतराल सेव करें",
+    "break_interval_updated": "ब्रेक अंतराल अपडेट हो गया।"
+  },
+  "language_picker": {
+    "label": "भाषा"
+  },
+  "dashboard": {
+    "nav": {
+      "overview": "अवलोकन",
+      "focus_mode": "फ़ोकस मोड",
+      "streaks": "स्ट्रीक्स",
+      "leaderboard": "लीडरबोर्ड",
+      "insights": "इनसाइट्स",
+      "sign_out": "साइन आउट",
+      "edit_profile": "प्रोफ़ाइल संपादित करें",
+      "history": "इतिहास",
+      "switch_to_light": "लाइट मोड पर जाएँ",
+      "switch_to_dark": "डार्क मोड पर जाएँ",
+      "collapse_sidebar": "साइडबार छोटा करें",
+      "expand_sidebar": "साइडबार बड़ा करें",
+      "badges": "बैज"
+    },
+    "overview": {
+      "welcome_back": "वापसी पर स्वागत है, {{username}}",
+      "default_username": "मित्र",
+      "subtitle": "पिछले 7 दिनों का आपका हाल यहाँ है। यह डैशबोर्ड आपके ट्रैकर के बैकएंड से वास्तविक डेटा पढ़ता है।",
+      "current_streak_heading": "वर्तमान स्ट्रीक",
+      "leaderboard_heading": "इस सप्ताह का लीडरबोर्ड",
+      "fetching_stats": "आपके आँकड़े लाए जा रहे हैं…",
+      "loading": "लोड हो रहा है…",
+      "productive_7d": "उत्पादक (7 दिन)",
+      "distracted_7d": "विचलित (7 दिन)",
+      "sessions_tracked": "ट्रैक किए गए सत्र",
+      "distracting_switches": "विचलित करने वाले स्विच",
+      "streak_days_one": "{{count}} दिन",
+      "streak_days_other": "{{count}} दिन",
+      "best_ever_one": "सर्वश्रेष्ठ: {{count}} दिन",
+      "best_ever_other": "सर्वश्रेष्ठ: {{count}} दिन",
+      "no_group_yet": "अभी तक कोई समूह नहीं है - बनाने या शामिल होने के लिए लीडरबोर्ड पेज पर जाएं।",
+      "couldnt_load_stats": "आँकड़े लोड नहीं हो सके: {{message}}",
+      "couldnt_load_streak": "स्ट्रीक लोड नहीं हो सकी।",
+      "couldnt_load_leaderboard": "लीडरबोर्ड लोड नहीं हो सका।",
+      "activity_heading": "गतिविधि",
+      "activity_summary": "पिछले 6 महीनों में {{count}} सक्रिय दिन",
+      "activity_less": "कम",
+      "activity_more": "ज़्यादा",
+      "activity_day": "{{date}} · {{minutes}} मिनट उत्पादक",
+      "activity_none": "{{date}} · कोई गतिविधि नहीं"
+    },
+    "focus": {
+      "heading": "फ़ोकस मोड",
+      "subtitle": "समय का एक खंड तय करें। किसी भी विचलित करने वाली चीज़ पर स्विच करने से सत्र टूट जाता है - कोई चुपचाप बचने का रास्ता नहीं।",
+      "right_now": "अभी",
+      "checking_tab": "आपका वर्तमान टैब/ऐप जांचा जा रहा है…",
+      "checking_session": "सक्रिय सत्र की जांच हो रही है…",
+      "not_tracking": "अभी ट्रैकिंग नहीं हो रही - इसे यहाँ देखने के लिए एक्सटेंशन खोलें या सिस्टम ट्रैकर शुरू करें।",
+      "browser_tab": "ब्राउज़र टैब",
+      "system_app": "सिस्टम ऐप",
+      "couldnt_reach_backend": "बैकएंड तक नहीं पहुंच सके।",
+      "couldnt_reach_backend_msg": "बैकएंड तक नहीं पहुंच सके: {{message}}",
+      "category_productive": "उत्पादक",
+      "category_distracted": "विचलित",
+      "category_neutral": "तटस्थ",
+      "encourage": "आप कर सकते हैं!",
+      "give_up_early": "जल्दी छोड़ें",
+      "distraction_warning": "आप विचलित हैं - अगर वापस नहीं गए तो सत्र {{seconds}} सेकंड में टूट जाएगा।",
+      "session_complete": "सत्र पूरा हुआ - बढ़िया फोकस!",
+      "session_broken": "विचलित होने के कारण सत्र टूट गया।",
+      "min_tracked_one": "{{count}} मिनट ट्रैक किया गया",
+      "min_tracked_other": "{{count}} मिनट ट्रैक किए गए",
+      "distraction_time_spent": ", विचलन में {{seconds}} सेकंड बिताए",
+      "start_another": "एक और सत्र शुरू करें",
+      "no_active_session": "कोई सक्रिय सत्र नहीं। एक अवधि चुनें और प्रतिबद्ध हों।",
+      "minutes_label": "मिनट",
+      "start_focus_mode": "फ़ोकस मोड शुरू करें",
+      "take_a_break": "ब्रेक लें",
+      "on_break": "ब्रेक पर हो - तैयार होने पर वापस आओ।",
+      "im_back": "मैं वापस आ गया",
+      "break_penalty_msg": "उस जल्दी लिए गए ब्रेक की वजह से +{{minutes}} मिनट बढ़ गए।",
+      "enter_fullscreen": "फ़ुल स्क्रीन",
+      "exit_fullscreen": "फ़ुल स्क्रीन से बाहर निकलें"
+    },
+    "streak": {
+      "heading": "आपकी स्ट्रीक",
+      "subtitle": "यदि आपके विचलित करने वाले स्विच आपकी सीमा से कम रहे तो एक दिन गिना जाता है। लगातार दिन आपकी स्ट्रीक बनाते हैं।",
+      "recent_days": "हाल के दिन",
+      "current_streak": "वर्तमान स्ट्रीक",
+      "best_ever": "सर्वश्रेष्ठ",
+      "no_badges": "अभी तक कोई बैज नहीं - 3-दिन की स्ट्रीक से आपका पहला बैज मिलेगा।",
+      "focused": "केंद्रित",
+      "missed": "छूट गया",
+      "day_summary": "{{minutes}} मिनट उत्पादक · {{count}} विचलित करने वाला स्विच",
+      "day_summary_other": "{{minutes}} मिनट उत्पादक · {{count}} विचलित करने वाले स्विच",
+      "no_tracked_days": "अभी तक कोई ट्रैक किया गया दिन नहीं - ट्रैकर चलाएं और यहाँ वापस आएं।",
+      "couldnt_load_streaks": "स्ट्रीक्स लोड नहीं हो सकीं: {{message}}",
+      "badge_3day": "3-दिन की स्ट्रीक",
+      "badge_week": "सप्ताह का योद्धा",
+      "badge_twoweek": "दो-सप्ताह का दिग्गज",
+      "badge_month": "महीने का मास्टर"
+    },
+    "board": {
+      "subtitle": "फोकस स्कोर के आधार पर रैंक किया गया: पिछले 7 दिनों में उत्पादक समय को (उत्पादक + विचलित करने वाला) समय से विभाजित किया गया है।",
+      "couldnt_reach_backend_msg": "बैकएंड तक नहीं पहुंच सके: {{message}}",
+      "no_group": "आप अभी तक किसी समूह में शामिल नहीं हुए हैं। एक शुरू करें, या किसी मित्र के कोड से शामिल हों।",
+      "new_group_name": "नए समूह का नाम",
+      "create_group": "समूह बनाएं",
+      "or": "या",
+      "join_code_label": "जॉइन कोड",
+      "join_group": "समूह में शामिल हों",
+      "join_code_pill": "जॉइन कोड: {{code}}",
+      "couldnt_load_leaderboard": "लीडरबोर्ड लोड नहीं हो सका: {{message}}",
+      "leave_group": "ग्रुप छोड़ें",
+      "leave_group_confirm": "\"{{name}}\" छोड़ें? इसके तुरंत बाद आप दूसरा ग्रुप जॉइन या बना सकते हैं।"
+    },
+    "insight": {
+      "heading": "साप्ताहिक इनसाइट",
+      "subtitle": "पिछले 7 दिनों का एक संक्षिप्त AI-लिखित सारांश, साथ ही इसके पीछे के वास्तविक आंकड़े।",
+      "what_noticed": "FocusGuard ने क्या देखा",
+      "refresh": "रीफ्रेश करें",
+      "productive": "उत्पादक",
+      "distracted": "विचलित",
+      "total_switches": "कुल स्विच",
+      "sessions": "सत्र",
+      "couldnt_load_insights": "इनसाइट्स लोड नहीं हो सकीं: {{message}}",
+      "rereading": "आपका सप्ताह फिर से पढ़ा जा रहा है…"
+    },
+    "history": {
+      "heading": "इतिहास",
+      "subtitle": "ब्राउज़र और सिस्टम दोनों में ट्रैक किया गया हर ऐप और टैब, दिन के हिसाब से और आपका समय असल में कहाँ गया, उसके हिसाब से।",
+      "top_distraction_heading": "सबसे बड़ी distraction",
+      "best_day_heading": "सबसे productive दिन",
+      "chart_heading": "पिछले 7 दिन",
+      "top_apps_heading": "टॉप ऐप्स और टैब्स",
+      "no_data": "अभी पर्याप्त ट्रैक किया गया डेटा नहीं है।",
+      "no_distraction_data": "अभी तक कोई distraction ट्रैक नहीं हुई - ऐसे ही बने रहो!",
+      "time_spent": "{{minutes}} मिनट",
+      "source_combined": "ब्राउज़र + सिस्टम",
+      "neutral": "Neutral",
+      "couldnt_load": "इतिहास लोड नहीं हो सका: {{message}}"
+    },
+    "badges": {
+      "heading": "बैज",
+      "subtitle": "हर बैज आपकी बनाई एक फ़ोकस आदत का निशान है। सबको अनलॉक करने के लिए आगे बढ़ते रहें।",
+      "unlocked_count": "{{total}} में से {{earned}} अनलॉक",
+      "earned": "अनलॉक",
+      "tier_common": "सामान्य",
+      "tier_rare": "दुर्लभ",
+      "tier_epic": "महान",
+      "couldnt_load": "बैज लोड नहीं हो सके: {{message}}",
+      "items": {
+        "first_spark": {
+          "name": "पहली चिंगारी",
+          "desc": "अपना पहला फ़ोकस मोड सेशन पूरा करें।"
+        },
+        "ember_keeper": {
+          "name": "अंगारों का रखवाला",
+          "desc": "3 दिन की फ़ोकस स्ट्रीक बनाए रखें।"
+        },
+        "flow_weaver": {
+          "name": "फ़्लो का बुनकर",
+          "desc": "7 दिन की फ़ोकस स्ट्रीक बनाए रखें।"
+        },
+        "unbreakable": {
+          "name": "अटूट",
+          "desc": "30 दिन की फ़ोकस स्ट्रीक बनाए रखें।"
+        },
+        "deep_diver": {
+          "name": "गहरा गोताखोर",
+          "desc": "50 मिनट या उससे लंबा फ़ोकस सेशन पूरा करें।"
+        },
+        "iron_will": {
+          "name": "फ़ौलादी इरादा",
+          "desc": "किसी भी डिस्ट्रैक्शन को छुए बिना फ़ोकस सेशन पूरा करें।"
+        },
+        "pomodoro_pro": {
+          "name": "पोमोडोरो प्रो",
+          "desc": "10 फ़ोकस सेशन पूरे करें।"
+        },
+        "focus_titan": {
+          "name": "फ़ोकस टाइटन",
+          "desc": "50 फ़ोकस सेशन पूरे करें।"
+        },
+        "ten_hour_club": {
+          "name": "दस घंटे का क्लब",
+          "desc": "10 घंटे का उत्पादक समय दर्ज करें।"
+        },
+        "centurion": {
+          "name": "शतकवीर",
+          "desc": "100 घंटे का उत्पादक समय दर्ज करें।"
+        },
+        "zen_master": {
+          "name": "ज़ेन मास्टर",
+          "desc": "एक दिन में 1+ घंटा उत्पादक काम करें और एक बार भी डिस्ट्रैक्शन पर न जाएँ।"
+        },
+        "early_bird": {
+          "name": "सुबह का पंछी",
+          "desc": "सुबह 7 बजे से पहले उत्पादक काम शुरू करें।"
+        },
+        "night_owl": {
+          "name": "रात का उल्लू",
+          "desc": "रात 10 बजे के बाद उत्पादक काम करें।"
+        },
+        "squad_up": {
+          "name": "टीम तैयार",
+          "desc": "कोई स्टडी ग्रुप जॉइन करें या बनाएँ।"
+        },
+        "top_of_pack": {
+          "name": "सबसे आगे",
+          "desc": "इस हफ़्ते अपने ग्रुप में #1 पर रहें।"
+        }
+      }
+    }
+  }
+}

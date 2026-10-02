@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>focusguard ai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<div class="popup-header">
+  <div class="brand-wordmark">focusguard ai</div>
+  <span id="status-icon" style="color:var(--lavender-deep);"></span>
+</div>
+
+<div class="card popup-card" id="account-card">
+  <h4><span id="icon-account" style="display:inline-flex;"></span> Account</h4>
+  <div id="account-connected" style="display:none;">
+    <div style="font-size:var(--step--1); color:var(--text-soft); margin-bottom:0.6em;">
+      Connected as <strong id="account-username" style="color:var(--text);"></strong>
+    </div>
+    <button type="button" id="account-disconnect" class="btn btn-ghost" style="padding:0.4em 0.8em; font-size:var(--step--1);">Disconnect</button>
+  </div>
+  <form id="account-form" style="display:none;">
+    <div style="font-size:var(--step--1); color:var(--text-soft); margin-bottom:0.6em;">
+      Use the <strong>same account</strong> you use on the web dashboard, so your browsing shows up in your streaks, leaderboard and insights.
+    </div>
+    <div class="field" style="margin-bottom:0.5em;">
+      <input type="text" id="account-username-input" placeholder="Username" autocomplete="username" required style="padding:0.6em 0.8em; font-size:var(--step--1); width:100%; box-sizing:border-box;">
+    </div>
+    <div class="field" style="margin-bottom:0.5em;">
+      <input type="password" id="account-password-input" placeholder="Password" autocomplete="current-password" required style="padding:0.6em 0.8em; font-size:var(--step--1); width:100%; box-sizing:border-box;">
+    </div>
+    <div id="account-error" style="display:none; color:var(--blush-deep); font-size:var(--step--1); margin-bottom:0.5em;"></div>
+    <div style="display:flex; gap:0.5em; align-items:center;">
+      <button type="submit" id="account-connect-btn" class="btn btn-primary" style="padding:0.5em 1em; font-size:var(--step--1);">Connect</button>
+      <label style="font-size:var(--step--1); color:var(--text-soft); display:flex; align-items:center; gap:0.35em;">
+        <input type="checkbox" id="account-new-checkbox"> New account
+      </label>
+    </div>
+  </form>
+</div>
+
+<div class="card popup-card">
+  <h4><span id="icon-live" style="display:inline-flex;"></span> Right now</h4>
+  <div class="live-session" id="live-session">
+    <span class="live-dot"></span>
+    <div style="flex:1;">
+      <div class="domain" id="live-domain">Loading&hellip;</div>
+      <div style="font-size:var(--step--1); color:var(--text-soft);">
+        <span id="live-category">-</span><span id="live-source"></span>
+      </div>
+    </div>
+    <div class="timer" id="live-timer">0:00</div>
+  </div>
+</div>
+
+<div class="card popup-card">
+  <h4><span id="icon-hour" style="display:inline-flex;"></span> This hour</h4>
+  <div class="hour-row">
+    <div>
+      <div class="hour-count" id="hour-count">0</div>
+      <div style="font-size:var(--step--1); color:var(--text-soft);">switches</div>
+    </div>
+    <span class="pill" id="hour-pill">-</span>
+  </div>
+</div>
+
+<div class="card popup-card">
+  <h4><span id="icon-recent" style="display:inline-flex;"></span> Recent activity</h4>
+  <div id="recent-list">
+    <div style="color:var(--text-soft); font-size:var(--step--1);">Nothing tracked yet.</div>
+  </div>
+</div>
+
+<div class="card popup-card">
+  <h4><span id="icon-insight" style="display:inline-flex;"></span> This week</h4>
+  <div id="insight-text" style="font-size:var(--step--1); color:var(--text-soft);">Loading&hellip;</div>
+</div>
+
+<div class="card popup-card">
+  <h4><span id="icon-test" style="display:inline-flex;"></span> Notifications</h4>
+  <div style="font-size:var(--step--1); color:var(--text-soft); margin-bottom:0.6em;">
+    If a distraction/break alert never shows up, test the OS notification pipeline directly here first.
+  </div>
+  <button type="button" id="test-notification-btn" class="btn btn-secondary" style="padding:0.5em 1em; font-size:var(--step--1); width:100%;">Send test notification</button>
+  <div id="test-notification-result" style="font-size:var(--step--1); color:var(--text-soft); margin-top:0.5em;"></div>
+</div>
+
+<div class="popup-footer">Synced with your focusguard ai backend</div>
+
+<script src="icons.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+/* popup.css - extension-specific layout. Colors/type/spacing all come
+   from theme.css (the same file the website imports), so this file
+   only contains popup-sized layout rules. */
+
+html, body { width: 340px; }
+body { padding: var(--space-2); }
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+.popup-header .brand-wordmark { font-size: var(--step-2); }
+
+.popup-card { padding: var(--space-2); margin-bottom: var(--space-2); }
+.popup-card h4 {
+  font-size: var(--step--1);
+  font-weight: 700;
+  color: var(--text-soft);
+  margin: 0 0 0.5em;
+  display: flex; align-items: center; gap: 0.4em;
+}
+
+.live-session { display: flex; align-items: center; gap: var(--space-2); }
+.live-session .domain { font-weight: 600; font-size: var(--step-0); }
+.live-session .timer { font-size: var(--step-1); color: var(--lavender-deep); font-weight: 700; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mint-deep); animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.hour-row { display: flex; align-items: center; justify-content: space-between; }
+.hour-count { font-size: var(--step-2); font-weight: 700; }
+
+.activity-item {
+  display: flex; align-items: center; gap: 0.6em;
+  padding: 0.5em 0;
+  border-bottom: 1px solid rgba(154,128,217,0.12);
+  font-size: var(--step--1);
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-item .name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-item .dur { color: var(--text-soft); }
+
+.popup-footer {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  padding-top: var(--space-1);
+}

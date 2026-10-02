@@ -1,0 +1,15 @@
+[project]
+name = "window-tracker"
+version = "0.1.0"
+description = "Detects active window/tab focus sessions and logs them as JSON records."
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    # Uncomment the block matching your OS, or just use requirements.txt
+    # "pywin32; sys_platform == 'win32'",
+    # "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
+    "psutil",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

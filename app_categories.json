@@ -1,0 +1,50 @@
+{
+  "_comment": "Matching is case-insensitive substring match against the detected app/window name. 'ignore' apps are skipped entirely and never logged. 'ambiguous' apps trigger a one-time terminal prompt per session asking how you're using them. Anything matching none of these lists falls through to Claude Haiku auto-classification (see llm_classifier.py) and gets cached in learned_categories.json so it's only classified once.",
+
+  "productive": [
+    "vs code", "visual studio", "code.exe", "pycharm", "intellij", "android studio",
+    "xcode", "sublime", "atom", "vim", "neovim", "eclipse", "webstorm", "clion",
+    "terminal", "windows terminal", "powershell", "cmd", "iterm", "bash",
+    "github", "gitlab", "bitbucket", "git", "sourcetree",
+    "leetcode", "hackerrank", "codeforces", "geeksforgeeks", "codechef", "stackoverflow",
+    "excel", "word", "powerpoint", "outlook", "onenote", "access",
+    "notion", "obsidian", "evernote", "todoist", "trello", "asana", "jira", "confluence",
+    "zoom", "google meet", "microsoft teams", "webex",
+    "figma", "sketch", "adobe xd",
+    "overleaf", "latex", "jupyter", "colab", "kaggle",
+    "coursera", "udemy", "edx", "khan academy", "duolingo", "brilliant",
+    "docs.google.com", "sheets.google.com", "slides.google.com", "drive.google.com",
+    "calendar", "google calendar",
+    "chatgpt", "claude.ai", "wolfram alpha", "postman", "docker",
+    "photoshop", "illustrator", "premiere pro", "after effects", "blender",
+    "notepad", "notepad++", "textedit",
+    "timer", "stopwatch", "pomodoro", "to-do", "todo list", "focus app"
+  ],
+
+  "distraction": [
+    "instagram", "facebook", "twitter", "x.com", "tiktok", "snapchat",
+    "reddit", "pinterest", "tumblr", "discord",
+    "netflix", "hulu", "disney+", "prime video", "hbo max", "twitch",
+    "steam", "epic games", "battle.net", "playstation", "xbox", "nintendo",
+    "spotify", "apple music", "soundcloud",
+    "9gag", "buzzfeed", "imgur",
+    "candy crush", "clash of clans", "roblox", "minecraft", "fortnite", "valorant",
+    "tinder", "bumble"
+  ],
+
+  "ambiguous": [
+    "gallery", "photos", "google photos", "youtube", "vlc", "media player"
+  ],
+
+  "neutral": [
+    "explorer", "finder", "settings", "control panel", "task manager",
+    "system preferences", "notification center", "whatsapp", "telegram",
+    "calculator", "mail", "gmail", "messages", "phone", "camera",
+    "app store", "microsoft store", "play store"
+  ],
+
+  "ignore": [
+    "explorer.exe", "shellexperiencehost", "searchhost", "textinputhost",
+    "dwm", "taskbar", "startmenuexperiencehost"
+  ]
+}

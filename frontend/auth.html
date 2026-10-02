@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in - focusguard ai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/auth.css">
+</head>
+<body class="auth-body">
+
+<div class="auth-bg" aria-hidden="true">
+  <div class="bg-blob bg-blob-1"></div>
+  <div class="bg-blob bg-blob-2"></div>
+  <div class="bg-blob bg-blob-3"></div>
+  <div class="bg-blob bg-blob-4"></div>
+</div>
+
+<div class="auth-center">
+  <div class="auth-card card">
+    <div class="brand-wordmark brand-wordmark-sm auth-brand">focusguard ai</div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login">Sign in</div>
+      <div class="auth-tab" id="tab-signup">Create account</div>
+    </div>
+
+    <div id="auth-msg" class="auth-msg"></div>
+
+    <form id="auth-form">
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:var(--space-1);" id="submit-btn">Sign in</button>
+    </form>
+
+    <p class="auth-hint" id="auth-hint">
+      New here? Just pick a username and password and hit "Create account" above - no email needed, this connects straight to your own backend.
+    </p>
+  </div>
+</div>
+
+<script src="js/icons.js"></script>
+<script src="js/api.js"></script>
+<script>
+  const tabLogin = document.getElementById('tab-login');
+  const tabSignup = document.getElementById('tab-signup');
+  const submitBtn = document.getElementById('submit-btn');
+  const hint = document.getElementById('auth-hint');
+  const msg = document.getElementById('auth-msg');
+  let mode = 'login';
+
+  function setMode(newMode) {
+    mode = newMode;
+    tabLogin.classList.toggle('active', mode === 'login');
+    tabSignup.classList.toggle('active', mode === 'signup');
+    submitBtn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+    hint.style.display = mode === 'signup' ? 'block' : 'none';
+    msg.style.display = 'none';
+  }
+  tabLogin.addEventListener('click', () => setMode('login'));
+  tabSignup.addEventListener('click', () => setMode('signup'));
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('mode') === 'signup') setMode('signup'); else setMode('login');
+
+  if (Auth.isLoggedIn()) window.location.href = 'app.html';
+
+  document.getElementById('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    submitBtn.disabled = true;
+    msg.style.display = 'none';
+    try {
+      if (mode === 'login') {
+        await Api.login(username, password);
+      } else {
+        await Api.register(username, password);
+      }
+      window.location.href = 'app.html';
+    } catch (err) {
+      msg.className = 'auth-msg error';
+      msg.textContent = err.message === 'Failed to fetch'
+        ? "Can't reach the backend - make sure it's running (uvicorn main:app --port 8000)."
+        : err.message;
+      msg.style.display = 'block';
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
