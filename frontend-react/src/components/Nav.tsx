@@ -13,7 +13,7 @@ export function Nav() {
   // a narrow logo and the wider buttons. Where the row is too narrow for
   // that, the links move to their own centred row underneath.
   return (
-    <nav className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-[1fr_auto] items-center gap-x-6 gap-y-4 px-8 py-6 min-[1180px]:grid-cols-[1fr_auto_1fr]">
+    <nav className="relative z-10 grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-4 px-6 pb-6 pt-3 min-[1180px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
       <Link to="/" className="col-start-1 row-start-1 justify-self-start font-serif text-2xl tracking-tight text-foreground">
         FocusGuard AI
       </Link>
