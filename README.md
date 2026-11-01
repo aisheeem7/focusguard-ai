@@ -22,7 +22,7 @@ FocusGuard AI quietly tracks which **apps and browser tabs** you use, works out 
 ## 🚀 Start using it (no installation needed)
 
 1. Open **[focusguard-ai-y4tt.onrender.com](https://focusguard-ai-y4tt.onrender.com)**.
-2. Click **Start Focusing** and create an account (just a username and password, no email).
+2. Click **Start Focusing** and create an account with a username and password, or click **Sign in with Google**. Add an email if you'd like to be able to reset a forgotten password.
 3. You're in. Explore the dashboard, start a Focus Mode session, or create a study group.
 
 **Want it as an app on your computer?** In Chrome or Edge, click the **install icon** at the right end of the address bar. FocusGuard then opens in its own window, like any other app.

@@ -12,6 +12,7 @@ from collections import defaultdict
 from datetime import datetime, date as date_cls, timedelta
 from pathlib import Path
 from typing import Optional
+import hashlib
 import json
 import os
 import re
@@ -30,19 +31,20 @@ from dotenv import load_dotenv
 # export these vars manually (or via CI/deploy config) are unaffected.
 load_dotenv()
 
-from fastapi import FastAPI, Depends, HTTPException, Request, status, UploadFile, File
+from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, Request, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import func, case, cast, String
+from sqlalchemy import func, case, cast, String, inspect as sa_inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import Base, engine, get_db, DATABASE_URL
-from models import User, SessionRecord, SwitchRecord, Group, FocusSession, WeeklyInsight, LearnedCategory, LiveStatus, DeviceLink, AvatarImage
+from models import User, SessionRecord, SwitchRecord, Group, FocusSession, WeeklyInsight, LearnedCategory, LiveStatus, DeviceLink, AvatarImage, EmailToken
 from schemas import (
     UserRegister, UserLogin, TokenResponse,
     UserProfileOut, UserProfileUpdate,
+    AuthConfigOut, ForgotPasswordRequest, ResetPasswordRequest, VerifyEmailRequest, GoogleSignIn, MessageOut,
     SessionCreate, SessionOut,
     SwitchCreate, SwitchOut,
     AnalyticsResponse, CategoryTotals,
@@ -57,6 +59,7 @@ from schemas import (
     BadgeProgress, BadgesResponse,
 )
 from auth import hash_password, verify_password, generate_token, get_current_user
+import mailer
 
 Base.metadata.create_all(bind=engine)
 
@@ -93,6 +96,18 @@ if DATABASE_URL.startswith("sqlite"):
         if "is_fallback" not in _insight_cols:
             _conn.exec_driver_sql("ALTER TABLE weekly_insights ADD COLUMN is_fallback BOOLEAN NOT NULL DEFAULT 0")
             _conn.commit()
+
+# The email/Google sign-in columns, for SQLite and Postgres alike (the
+# online database predates them too). Plain VARCHAR columns and IF NOT
+# EXISTS indexes are written the same way in both.
+_user_cols = {c["name"] for c in sa_inspect(engine).get_columns("users")}
+_new_user_cols = [c for c in ("email", "pending_email", "google_sub") if c not in _user_cols]
+if _new_user_cols:
+    with engine.begin() as _conn:
+        for _col in _new_user_cols:
+            _conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {_col} VARCHAR")
+        _conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users (email)")
+        _conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_sub ON users (google_sub)")
 
 app = FastAPI(title="Distraction Tracker Backend", version="0.1.0")
 
@@ -169,7 +184,7 @@ app.add_middleware(
 async def no_cache_for_dev_static(request, call_next):
     response = await call_next(request)
     path = request.url.path
-    if path in ("/", "/auth", "/profile", "/app.html") or path.startswith("/css/") or path.startswith("/js/"):
+    if path in ("/", "/auth", "/profile", "/reset-password", "/verify-email", "/privacy", "/app.html") or path.startswith("/css/") or path.startswith("/js/"):
         response.headers["Cache-Control"] = "no-cache"
     # The service worker script and manifest must always be revalidated -
     # a browser-cached stale sw.js would delay update detection (workbox's
@@ -183,10 +198,18 @@ async def no_cache_for_dev_static(request, call_next):
 # ---- Auth endpoints ----
 
 @app.post("/users/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: UserRegister, db: Session = Depends(get_db)):
+def register(
+    payload: UserRegister,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     existing = db.query(User).filter(User.username == payload.username).first()
     if existing:
         raise HTTPException(status_code=400, detail="Username already taken")
+    email = _normalize_email(payload.email) if payload.email and payload.email.strip() else None
+    if email and not mailer.email_enabled():
+        raise HTTPException(status_code=503, detail="Email isn't set up on this server")
     user = User(
         username=payload.username,
         hashed_password=hash_password(payload.password),
@@ -207,6 +230,8 @@ def register(payload: UserRegister, db: Session = Depends(get_db)):
             raise  # genuinely unexpected - re-raise the original error
         return TokenResponse(user_id=winner.id, username=winner.username, api_token=winner.api_token)
     db.refresh(user)
+    if email:
+        _start_email_change(db, user, email, request, background_tasks)
     return TokenResponse(user_id=user.id, username=user.username, api_token=user.api_token)
 
 
@@ -215,6 +240,216 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == payload.username).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
+    return TokenResponse(user_id=user.id, username=user.username, api_token=user.api_token)
+
+
+# ---- Email: forgot password, confirming an address ----
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+RESET_LINK_LIFETIME = timedelta(hours=1)
+VERIFY_LINK_LIFETIME = timedelta(hours=24)
+RESET_EMAIL_COOLDOWN = timedelta(seconds=60)
+
+
+def _normalize_email(raw: str) -> str:
+    email = raw.strip().lower()
+    if not EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="That doesn't look like an email address")
+    return email
+
+
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _public_url(request: Request) -> str:
+    """The site's own address, for links in emails. PUBLIC_URL overrides
+    it when the server can't tell (e.g. behind an unusual proxy)."""
+    return os.environ.get("PUBLIC_URL", "").strip().rstrip("/") or str(request.base_url).rstrip("/")
+
+
+def _issue_email_token(db: Session, user: User, purpose: str, email: str, lifetime: timedelta) -> str:
+    now = datetime.utcnow()
+    # Only the newest link of each kind works.
+    db.query(EmailToken).filter(
+        EmailToken.user_id == user.id, EmailToken.purpose == purpose, EmailToken.used_at.is_(None)
+    ).update({EmailToken.used_at: now}, synchronize_session=False)
+    raw = secrets.token_urlsafe(32)
+    db.add(EmailToken(user_id=user.id, purpose=purpose, token_hash=_hash_token(raw),
+                      email=email, expires_at=now + lifetime))
+    db.commit()
+    return raw
+
+
+def _consume_email_token(db: Session, raw: str, purpose: str) -> EmailToken:
+    row = db.query(EmailToken).filter(
+        EmailToken.token_hash == _hash_token(raw), EmailToken.purpose == purpose
+    ).first()
+    if row is None or row.used_at is not None or row.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="This link is invalid or has expired")
+    row.used_at = datetime.utcnow()
+    return row
+
+
+def _start_email_change(db: Session, user: User, email: str, request: Request,
+                        background_tasks: BackgroundTasks) -> None:
+    """Holds the new address in pending_email and emails it a confirmation
+    link; it becomes the account's email once that link is opened."""
+    if not mailer.email_enabled():
+        raise HTTPException(status_code=503, detail="Email isn't set up on this server")
+    owner = db.query(User).filter(User.email == email).first()
+    if owner is not None and owner.id != user.id:
+        raise HTTPException(status_code=400, detail="That email is already used by another account")
+    if owner is not None:  # already this account's confirmed email
+        user.pending_email = None
+        db.commit()
+        return
+    user.pending_email = email
+    db.commit()
+    raw = _issue_email_token(db, user, "verify", email, VERIFY_LINK_LIFETIME)
+    link = f"{_public_url(request)}/verify-email?token={raw}"
+    background_tasks.add_task(
+        mailer.send_email, email, "Confirm your FocusGuard AI email",
+        f"Hi {user.username},\n\n"
+        f"Open this link to confirm this is your email for FocusGuard AI:\n{link}\n\n"
+        f"The link works for 24 hours. If you didn't ask for this, you can ignore this email.\n",
+    )
+
+
+@app.get("/auth/config", response_model=AuthConfigOut)
+def auth_config():
+    return AuthConfigOut(
+        google_client_id=os.environ.get("GOOGLE_CLIENT_ID", "").strip() or None,
+        email_enabled=mailer.email_enabled(),
+    )
+
+
+@app.post("/auth/forgot-password", response_model=MessageOut)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    if not mailer.email_enabled():
+        raise HTTPException(status_code=503, detail="Email isn't set up on this server")
+    identifier = payload.identifier.strip()
+    user = db.query(User).filter(
+        (User.username == identifier) | (User.email == identifier.lower())
+    ).first() if identifier else None
+    if user is not None and user.email:
+        recent = db.query(EmailToken).filter(
+            EmailToken.user_id == user.id, EmailToken.purpose == "reset",
+            EmailToken.created_at > datetime.utcnow() - RESET_EMAIL_COOLDOWN,
+        ).first()
+        if recent is None:
+            raw = _issue_email_token(db, user, "reset", user.email, RESET_LINK_LIFETIME)
+            link = f"{_public_url(request)}/reset-password?token={raw}"
+            background_tasks.add_task(
+                mailer.send_email, user.email, "Reset your FocusGuard AI password",
+                f"Hi {user.username},\n\n"
+                f"Open this link to choose a new password:\n{link}\n\n"
+                f"The link works for 1 hour. If you didn't ask for this, you can ignore this email - "
+                f"your password stays the same.\n",
+            )
+    # The same reply whether or not the account exists, so this can't be
+    # used to find out who has an account.
+    return MessageOut(message="If that account has a confirmed email, a reset link is on its way.")
+
+
+@app.post("/auth/reset-password", response_model=TokenResponse)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    if not payload.new_password:
+        raise HTTPException(status_code=400, detail="Password can't be empty")
+    row = _consume_email_token(db, payload.token, "reset")
+    user = db.query(User).filter(User.id == row.user_id).first()
+    if user is None or user.email != row.email:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="This link is invalid or has expired")
+    user.hashed_password = hash_password(payload.new_password)
+    # A new token signs out every other device, in case someone else was in.
+    user.api_token = generate_token()
+    db.commit()
+    return TokenResponse(user_id=user.id, username=user.username, api_token=user.api_token)
+
+
+@app.post("/auth/verify-email", response_model=MessageOut)
+def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
+    row = _consume_email_token(db, payload.token, "verify")
+    user = db.query(User).filter(User.id == row.user_id).first()
+    taken = db.query(User).filter(User.email == row.email, User.id != row.user_id).first()
+    if user is None or user.pending_email != row.email or taken is not None:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="This link is invalid or has expired")
+    user.email, user.pending_email = row.email, None
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="That email is already used by another account")
+    return MessageOut(message=row.email)
+
+
+# ---- Sign in with Google ----
+
+def _verify_google_credential(credential: str, client_id: str) -> dict:
+    """Checks the ID token's signature, expiry and audience against Google's
+    published keys. Returns its claims; raises ValueError if it's not valid."""
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    return id_token.verify_oauth2_token(credential, google_requests.Request(), client_id)
+
+
+def _username_from_email(db: Session, email: str) -> str:
+    base = re.sub(r"[^a-z0-9_.-]", "", email.split("@", 1)[0].lower())[:24] or "user"
+    candidate, n = base, 1
+    while db.query(User).filter(User.username == candidate).first() is not None:
+        n += 1
+        candidate = f"{base}{n}"
+    return candidate
+
+
+@app.post("/auth/google", response_model=TokenResponse)
+def google_sign_in(payload: GoogleSignIn, db: Session = Depends(get_db)):
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google sign-in isn't set up on this server")
+    try:
+        claims = _verify_google_credential(payload.credential, client_id)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Google sign-in failed - please try again")
+    sub, email = claims.get("sub"), (claims.get("email") or "").lower()
+    if not sub or not email or not claims.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Your Google account has no verified email")
+
+    user = db.query(User).filter(User.google_sub == sub).first()
+    if user is None:
+        # An account that already confirmed this address is the same person.
+        user = db.query(User).filter(User.email == email).first()
+        if user is not None:
+            user.google_sub = sub
+            if user.pending_email == email:
+                user.pending_email = None
+        else:
+            user = User(
+                username=_username_from_email(db, email),
+                # Unusable until they choose one with "Forgot password?" -
+                # only needed for the desktop tracker and browser extension.
+                hashed_password=hash_password(secrets.token_urlsafe(32)),
+                api_token=generate_token(),
+                email=email,
+                google_sub=sub,
+            )
+            db.add(user)
+        try:
+            db.commit()
+        except IntegrityError:
+            # A second sign-in raced this one; use the account it made.
+            db.rollback()
+            user = db.query(User).filter(User.google_sub == sub).first()
+            if user is None:
+                raise
+        db.refresh(user)
     return TokenResponse(user_id=user.id, username=user.username, api_token=user.api_token)
 
 
@@ -228,6 +463,8 @@ def get_me(current_user: User = Depends(get_current_user)):
 @app.patch("/users/me", response_model=UserProfileOut)
 def update_me(
     payload: UserProfileUpdate,
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -248,6 +485,14 @@ def update_me(
             raise HTTPException(status_code=400, detail="break_interval_minutes must be between 5 and 240")
         current_user.break_interval_minutes = payload.break_interval_minutes
         db.commit()
+        db.refresh(current_user)
+
+    if payload.email is not None:
+        if not payload.email.strip():
+            current_user.email = current_user.pending_email = None
+            db.commit()
+        else:
+            _start_email_change(db, current_user, _normalize_email(payload.email), request, background_tasks)
         db.refresh(current_user)
 
     return current_user
@@ -1991,8 +2236,11 @@ def get_insights(
 @app.get("/", include_in_schema=False)
 @app.get("/auth", include_in_schema=False)
 @app.get("/profile", include_in_schema=False)
+@app.get("/reset-password", include_in_schema=False)
+@app.get("/verify-email", include_in_schema=False)
+@app.get("/privacy", include_in_schema=False)
 def root():
-    # Serves the built React app's index.html for its three client-side
+    # Serves the built React app's index.html for its client-side
     # routes (React Router handles which page renders once it loads) so
     # opening/reloading any of them works from a single local server.
     # Falls back to the old JSON health check when no build exists yet -

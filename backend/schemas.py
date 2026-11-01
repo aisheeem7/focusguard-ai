@@ -16,6 +16,9 @@ from typing import Optional
 class UserRegister(BaseModel):
     username: str
     password: str
+    # Optional: lets the user reset a forgotten password later. Becomes the
+    # account's email only after they click the confirmation link.
+    email: Optional[str] = None
 
 
 class UserLogin(BaseModel):
@@ -34,6 +37,9 @@ class UserProfileOut(BaseModel):
     username: str
     avatar_url: Optional[str] = None
     break_interval_minutes: int = 50
+    email: Optional[str] = None
+    pending_email: Optional[str] = None
+    google_linked: bool = False
 
     class Config:
         from_attributes = True
@@ -41,10 +47,40 @@ class UserProfileOut(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     username: Optional[str] = None
+    # Starts a change of email: a confirmation link goes to the new address.
+    # An empty string removes the email (and any pending one).
+    email: Optional[str] = None
     # Feature 8: how often (minutes) this user wants a break reminder,
     # shared across window_tracker.py, the extension, and Focus Mode's
     # break/penalty mechanic. Bounded to a sane range server-side.
     break_interval_minutes: Optional[int] = None
+
+
+class AuthConfigOut(BaseModel):
+    """What the sign-in page needs to know about this server."""
+    google_client_id: Optional[str] = None
+    email_enabled: bool = False
+
+
+class ForgotPasswordRequest(BaseModel):
+    identifier: str  # username or email
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class GoogleSignIn(BaseModel):
+    credential: str  # the ID token from Google's sign-in button
+
+
+class MessageOut(BaseModel):
+    message: str
 
 
 # ---- Sessions ----

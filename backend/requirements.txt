@@ -16,3 +16,5 @@ pytest       # to run tests/
 google-genai # Feature 5 fallback if Anthropic is unavailable/out of credits; set GEMINI_API_KEY too (free tier: aistudio.google.com)
 openai       # Feature 5 third fallback via the CheaperInference proxy; set CHEAPER_INFERENCE_API_KEY too
 psycopg2-binary # Postgres driver - used when deployed online (DATABASE_URL=postgresql://...)
+google-auth  # checks "Sign in with Google" tokens (set GOOGLE_CLIENT_ID)
+requests     # the HTTP transport google-auth uses to fetch Google's signing keys

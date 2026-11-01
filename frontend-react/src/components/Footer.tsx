@@ -7,6 +7,10 @@ export function Footer() {
   return (
     <footer className="animate-fade-rise-delay-2 px-3 py-6 text-center font-sans text-sm text-muted-foreground">
       ୨ৎ made with ♡ by ash ୨ৎ
+      <span className="mx-2">·</span>
+      <a href="/privacy" className="transition-colors hover:text-foreground">
+        Privacy
+      </a>
     </footer>
   )
 }

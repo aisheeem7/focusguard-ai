@@ -25,11 +25,23 @@ class User(Base):
     # break/penalty mechanic, so all three surfaces agree on one value
     # instead of each hardcoding their own default.
     break_interval_minutes = Column(Integer, nullable=False, default=50)
+    # A confirmed email address, used for "forgot password" and to match a
+    # Google sign-in to an existing account. A newly entered address waits
+    # in pending_email until its owner clicks the confirmation link, so
+    # nobody can claim (or receive reset links for) someone else's address.
+    email = Column(String, unique=True, index=True, nullable=True)
+    pending_email = Column(String, nullable=True)
+    # Google's stable account id, set once the user signs in with Google.
+    google_sub = Column(String, unique=True, index=True, nullable=True)
     created_at = Column(UTCDateTime(), server_default=func.now())
 
     sessions = relationship("SessionRecord", back_populates="user")
     switches = relationship("SwitchRecord", back_populates="user")
     group = relationship("Group", back_populates="members")
+
+    @property
+    def google_linked(self) -> bool:
+        return self.google_sub is not None
 
 
 class Group(Base):
@@ -205,3 +217,19 @@ class AvatarImage(Base):
     filename = Column(String, nullable=False)
     content_type = Column(String, nullable=False)
     data = Column(LargeBinary, nullable=False)
+
+
+class EmailToken(Base):
+    """A single-use link sent by email: purpose "reset" sets a new password,
+    "verify" confirms pending_email. Only a SHA-256 hash of the token is
+    stored, so a database leak doesn't hand out working links."""
+    __tablename__ = "email_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    purpose = Column(String, nullable=False)
+    token_hash = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, nullable=False)  # the address the link was sent to
+    expires_at = Column(UTCDateTime(), nullable=False)
+    used_at = Column(UTCDateTime(), nullable=True)
+    created_at = Column(UTCDateTime(), server_default=func.now())

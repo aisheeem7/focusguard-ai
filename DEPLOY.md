@@ -31,6 +31,36 @@ Keep it private: it's the password to your database.
 
 **Free-tier note:** Render's free plan sleeps after ~15 minutes without visitors, and the first visit afterwards takes about a minute. To keep it awake, add the site URL as a free monitor at [uptimerobot.com](https://uptimerobot.com) (check every 10 minutes), or switch the service to a paid plan.
 
+## 2b. Sign in with Google and "Forgot password?" emails (optional, ~15 min)
+
+Both use one Google Cloud project. Until you set these up, the sign-in page just doesn't show the Google button or the "Forgot password?" link.
+
+**Why not plain Gmail SMTP?** Render's free plan blocks the email ports (25, 465, 587), so online the server sends through the Gmail API instead, which uses ordinary HTTPS.
+
+1. Go to **console.cloud.google.com** and create a project (e.g. `focusguard`).
+2. **Google Auth Platform → Branding**: set the app name (FocusGuard AI) and your support email. Under **Audience**, choose **External**, then click **Publish app**. Without publishing, only test users you list can sign in, and the Gmail refresh token stops working after 7 days.
+3. **APIs & Services → Library**: search for **Gmail API** and click **Enable**.
+4. **Google Auth Platform → Clients → Create client**, type **Web application**:
+   - **Authorized JavaScript origins**: `https://focusguard-ai-y4tt.onrender.com` (your site), plus `http://localhost` and `http://localhost:8000` for running it locally.
+   - **Authorized redirect URIs**: `https://developers.google.com/oauthplayground` (needed once, in step 5).
+   - Copy the **Client ID** and **Client secret**.
+5. Get a Gmail refresh token. It lets the server send email from your Gmail account, and nothing else.
+   1. Open **developers.google.com/oauthplayground**. Click the gear icon, tick **Use your own OAuth credentials** and paste the client ID and secret.
+   2. In **Step 1**, type `https://www.googleapis.com/auth/gmail.send` in the box and click **Authorize APIs**. Sign in with the Gmail account the emails should come from. Google warns that the app isn't verified: click **Advanced → Go to FocusGuard AI**. This is your own app, so that's expected.
+   3. In **Step 2**, click **Exchange authorization code for tokens** and copy the **Refresh token**.
+6. In Render, open **focusguard-ai → Environment** and add these, then save (Render restarts the site):
+   - `GOOGLE_CLIENT_ID`: the client ID
+   - `GOOGLE_CLIENT_SECRET`: the client secret
+   - `GMAIL_ADDRESS`: the Gmail address from step 5
+   - `GMAIL_REFRESH_TOKEN`: the refresh token
+
+**Running locally:** put the same four lines in a `.env` file in the project's top folder (it's in `.gitignore`). Or, for email only, use `GMAIL_ADDRESS` plus `GMAIL_APP_PASSWORD`, an app password from **myaccount.google.com/apppasswords** (needs 2-Step Verification). Open the site at `http://localhost:8000`, not `127.0.0.1`: Google's button only works on addresses listed in step 4.
+
+**How it behaves:**
+- Users add an email when they sign up, or later on their profile page. It only counts once they click the confirmation link, so nobody can claim someone else's address.
+- "Forgot password?" emails a link that works once, for 1 hour. Using it signs the account out everywhere else, so the desktop tracker and extension ask to sign in again.
+- Signing in with Google uses the account that has confirmed that email, or creates a new one. New Google accounts get a username from the email address. They have no password, so to use the desktop tracker or extension they choose one with "Forgot password?".
+
 ## 3. Build the downloads (~5 min, on Windows)
 
 The tracker and extension need to know your site's address. This bakes it into the copies you share; the source code keeps pointing at `127.0.0.1` for local use.

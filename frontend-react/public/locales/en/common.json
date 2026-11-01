@@ -22,7 +22,17 @@
     "backend_unreachable": "Can't reach the backend - make sure it's running (uvicorn main:app --port 8000).",
     "signup_note": "Just pick a username and password - no email needed, this connects straight to your own backend.",
     "backend_label": "Backend:",
-    "back_to_home": "← Back to home"
+    "back_to_home": "← Back to home",
+    "forgot_password": "Forgot password?",
+    "forgot_title": "Reset your password",
+    "forgot_hint": "Enter your username or email. We'll email a link to choose a new password.",
+    "identifier": "Username or email",
+    "send_reset_link": "Send reset link",
+    "reset_sent": "If that account has a confirmed email, a reset link is on its way. Check your inbox and spam folder.",
+    "back_to_sign_in": "← Back to sign in",
+    "email_optional": "Email (optional)",
+    "or": "or",
+    "signup_note_email": "Add an email so you can reset your password if you forget it. We'll send a link to confirm it."
   },
   "profile": {
     "title": "Your profile",
@@ -39,7 +49,15 @@
     "break_interval_label": "Break reminder interval",
     "break_interval_hint": "How often FocusGuard reminds you to take a break, in Focus Mode and everywhere else.",
     "save_break_interval": "Save interval",
-    "break_interval_updated": "Break interval updated."
+    "break_interval_updated": "Break interval updated.",
+    "email": "Email",
+    "email_hint": "Used to reset your password if you forget it.",
+    "save_email": "Save email",
+    "email_pending": "We sent a confirmation link to {{email}}. Open it to finish.",
+    "email_confirmed": "{{email}} is confirmed.",
+    "email_none": "No email added yet.",
+    "email_saved": "Email updated.",
+    "google_linked": "Linked to Google sign-in."
   },
   "language_picker": {
     "label": "Language"
@@ -249,6 +267,36 @@
           "desc": "Rank #1 in your group this week."
         }
       }
+    },
+    "tracker": {
+      "online": "Desktop tracker connected - your apps are being tracked",
+      "title": "Your desktop apps aren't being tracked",
+      "body": "A website can't see apps like Word, File Explorer or VS Code. FocusGuard's small desktop tracker can - run it once and it tracks them for you.",
+      "step_download": "Download the tracker and open it.",
+      "step_sign_in": "Sign in with this same account.",
+      "step_startup": "Choose \"Start with Windows\" - it then runs quietly in the background every day.",
+      "download": "Download for Windows",
+      "windows_only": "Windows 10/11. Already installed? It starts with Windows - or open it again.",
+      "local_body": "The desktop tracker isn't running. It starts by itself when you sign in here; if it doesn't, start FocusGuard with python launch_focusguard.py.",
+      "dismiss": "Hide"
     }
+  },
+  "reset": {
+    "title": "Choose a new password",
+    "new_password": "New password",
+    "confirm_password": "Confirm new password",
+    "mismatch": "The passwords don't match.",
+    "save": "Save password",
+    "saving": "Saving…",
+    "no_token": "This link is incomplete. Request a new one below.",
+    "request_new_link": "Request a new link"
+  },
+  "verify": {
+    "title": "Confirm your email",
+    "checking": "Confirming…",
+    "success": "{{email}} is confirmed. You can now reset your password with it.",
+    "no_token": "This link is incomplete. Add your email again on your profile page.",
+    "go_to_dashboard": "Go to dashboard",
+    "go_to_sign_in": "Go to sign in"
   }
 }

@@ -13,6 +13,12 @@ export default function ProfilePage() {
   const [username, setUsername] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [breakInterval, setBreakInterval] = useState(50)
+  const [email, setEmail] = useState('')
+  const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null)
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null)
+  const [googleLinked, setGoogleLinked] = useState(false)
+  const [emailEnabled, setEmailEnabled] = useState(false)
+  const [savingEmail, setSavingEmail] = useState(false)
   const [loading, setLoading] = useState(true)
   const [savingUsername, setSavingUsername] = useState(false)
   const [savingBreakInterval, setSavingBreakInterval] = useState(false)
@@ -30,10 +36,39 @@ export default function ProfilePage() {
         setUsername(profile.username)
         setAvatarUrl(profile.avatar_url)
         setBreakInterval(profile.break_interval_minutes)
+        showEmail(profile)
       })
       .catch((err: Error) => setMessage({ type: 'error', text: err.message }))
       .finally(() => setLoading(false))
+    Api.getAuthConfig()
+      .then((config) => setEmailEnabled(config.email_enabled))
+      .catch(() => setEmailEnabled(false))
   }, [])
+
+  function showEmail(profile: { email: string | null; pending_email: string | null; google_linked: boolean }) {
+    setConfirmedEmail(profile.email)
+    setPendingEmail(profile.pending_email)
+    setGoogleLinked(profile.google_linked)
+    setEmail(profile.pending_email ?? profile.email ?? '')
+  }
+
+  async function handleEmailSubmit(e: FormEvent) {
+    e.preventDefault()
+    setSavingEmail(true)
+    setMessage(null)
+    try {
+      const profile = await Api.updateEmail(email.trim())
+      showEmail(profile)
+      setMessage({
+        type: 'success',
+        text: profile.pending_email ? t('profile.email_pending', { email: profile.pending_email }) : t('profile.email_saved'),
+      })
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : String(err) })
+    } finally {
+      setSavingEmail(false)
+    }
+  }
 
   async function handleUsernameSubmit(e: FormEvent) {
     e.preventDefault()
@@ -161,6 +196,33 @@ export default function ProfilePage() {
                     {savingUsername ? t('profile.saving') : t('profile.save_username')}
                   </Button>
                 </form>
+
+                {(emailEnabled || confirmedEmail) && (
+                  <form onSubmit={handleEmailSubmit} className="mt-6 flex flex-col gap-4 border-t border-white/10 pt-6">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="font-sans text-xs font-medium text-muted-foreground">{t('profile.email')}</span>
+                      <p className="font-sans text-xs text-muted-foreground">{t('profile.email_hint')}</p>
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 font-sans text-foreground outline-none focus-visible:border-accent"
+                      />
+                    </label>
+                    <p className="font-sans text-xs text-muted-foreground">
+                      {pendingEmail
+                        ? t('profile.email_pending', { email: pendingEmail })
+                        : confirmedEmail
+                          ? t('profile.email_confirmed', { email: confirmedEmail })
+                          : t('profile.email_none')}
+                      {googleLinked && ` ${t('profile.google_linked')}`}
+                    </p>
+                    <Button type="submit" variant="glass" disabled={savingEmail || !emailEnabled} className="rounded-full">
+                      {savingEmail ? t('profile.saving') : t('profile.save_email')}
+                    </Button>
+                  </form>
+                )}
 
                 <form onSubmit={handleBreakIntervalSubmit} className="mt-6 flex flex-col gap-4 border-t border-white/10 pt-6">
                   <label className="flex flex-col gap-1.5">

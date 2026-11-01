@@ -96,13 +96,21 @@ interface Profile {
   username: string
   avatar_url: string | null
   break_interval_minutes: number
+  email: string | null
+  pending_email: string | null
+  google_linked: boolean
+}
+
+export interface AuthConfig {
+  google_client_id: string | null
+  email_enabled: boolean
 }
 
 export const Api = {
-  async register(username: string, password: string) {
+  async register(username: string, password: string, email?: string) {
     const data = await apiRequest<Session>('/users/register', {
       method: 'POST',
-      body: { username, password },
+      body: { username, password, ...(email ? { email } : {}) },
       auth: false,
     })
     Auth.setSession(data)
@@ -117,8 +125,48 @@ export const Api = {
     Auth.setSession(data)
     return data
   },
+  getAuthConfig() {
+    return apiRequest<AuthConfig>('/auth/config', { auth: false })
+  },
+  forgotPassword(identifier: string) {
+    return apiRequest<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: { identifier },
+      auth: false,
+    })
+  },
+  async resetPassword(token: string, newPassword: string) {
+    const data = await apiRequest<Session>('/auth/reset-password', {
+      method: 'POST',
+      body: { token, new_password: newPassword },
+      auth: false,
+    })
+    Auth.setSession(data)
+    return data
+  },
+  verifyEmail(token: string) {
+    return apiRequest<{ message: string }>('/auth/verify-email', {
+      method: 'POST',
+      body: { token },
+      auth: false,
+    })
+  },
+  async googleSignIn(credential: string) {
+    const data = await apiRequest<Session>('/auth/google', {
+      method: 'POST',
+      body: { credential },
+      auth: false,
+    })
+    Auth.setSession(data)
+    return data
+  },
   async getMe() {
     const data = await apiRequest<Profile>('/users/me')
+    Auth.setProfile(data)
+    return data
+  },
+  async updateEmail(email: string) {
+    const data = await apiRequest<Profile>('/users/me', { method: 'PATCH', body: { email } })
     Auth.setProfile(data)
     return data
   },
